@@ -1,7 +1,10 @@
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.contrib.auth.models import User
+from rest_framework import status
 from .models import Product, Category, Cart, CartItem, Order, OrderItem
-from .serializers import ProductSerializer, CategorySerializer, CartSerializer, CartItemSerializer
+from .serializers import ProductSerializer, CategorySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer
 
 @api_view(['GET'])
 def get_products(request):
@@ -25,16 +28,18 @@ def get_categories(request):
     return Response(serializer.data)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_cart(request):
-    cart, created = Cart.objects.get_or_create(user=None)
+    cart, created = Cart.objects.get_or_create(user=request.user)
     serializer = CartSerializer(cart)
     return Response(serializer.data)
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def add_to_cart(request):
     product_id = request.data.get('product_id')
     product = Product.objects.get(id=product_id)
-    cart, created = Cart.objects.get_or_create(user=None)
+    cart, created = Cart.objects.get_or_create(user=request.user)
     item, created = CartItem.objects.get_or_create(cart=cart, product=product)
     
     if not created:
@@ -43,11 +48,12 @@ def add_to_cart(request):
     return Response({'message': 'Product added to cart',"cart":CartSerializer(cart).data})
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def update_cart_quantity(request):
     item_id = request.data.get('item_id')
     quantity = request.data.get('quantity')
 
-    cart = Cart.objects.filter(user=None).first()
+    cart = Cart.objects.filter(user=request.user).first()
     if not cart:
         return Response({"error": "Cart not found"}, status=404)
 
@@ -68,9 +74,10 @@ def update_cart_quantity(request):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def remove_from_cart(request):
     item_id = request.data.get('item_id')
-    cart = Cart.objects.filter(user=None).first()
+    cart = Cart.objects.filter(user=request.user).first()
 
     if cart:
         CartItem.objects.filter(cart=cart, id=item_id).delete()
@@ -78,6 +85,7 @@ def remove_from_cart(request):
     return Response({"message": "Item removed"})
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def create_order(request):
     try:
         data = request.data
@@ -86,30 +94,34 @@ def create_order(request):
         phone = data.get('phone')
         payment_method = data.get('payment_method', 'COD')
         
-        cart = Cart.objects.filter(user=None).first()
+        # Validate phone number
+        if not phone.isdigit() or len(phone) < 2:
+            return Response({"error": "Invalid phone number"})
         
-        if not cart or not cart.items.exists():
-            return Response({'error' : 'Cart is empty'}, status=400)
+        # Get user's cart
+        cart, created = Cart.objects.get_or_create(user=request.user)
+        cart_items = CartItem.objects.filter(cart=cart)
+
+        if not cart_items.exists():
+            return Response({'error': 'Cart is empty'}, status=400)
         
-        total = sum(float(item.product.price) * item.quantity for item in cart.items.all())
+        total = sum([item.product.price * item.quantity for item in cart_items.all()])
         
-        # Create Order
         order = Order.objects.create(
-            user = None,
-            total_amount = total,
+            user = request.user,
+            total_amount = total
         )
         
-        # Create Order Items
-        for item in cart.items.all():
+        for item in cart_items.all():
             OrderItem.objects.create(
                 order = order,
                 product = item.product,
                 quantity = item.quantity,
-                price = item.product.price,
+                price = item.product.price
             )
         
         # Clear the cart
-        cart.items.all().delete()
+        cart_items.all().delete()
         
         return Response({
             "message" : "Order Placed Successfully!",
@@ -119,3 +131,11 @@ def create_order(request):
     except Exception as e:
         return Response({"error" : str(e)}, status=500)
         
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register(request):
+    serializer = RegisterSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response({"message" : "User created successfully!", "user" : UserSerializer(user).data}, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
