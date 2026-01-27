@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { authFetch } from "../utils/auth";
 import { useCart } from "../context/CartContext";
 
 function CheckoutPage() {
@@ -29,7 +30,7 @@ function CheckoutPage() {
         setLoading(true);
         setMessage("");
         try {
-            const res = await fetch(`${BASEURL}/api/orders/create/`, {
+            const res = await authFetch(`${BASEURL}/api/orders/create/`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -40,7 +41,6 @@ function CheckoutPage() {
 
             if (res.ok) {
                 setMessage("Order placed successfully!");
-                fetch(`${BASEURL}/api/cart/`);
                 clearCart();
                 setTimeout(() => {
                     navigate("/");
@@ -54,7 +54,7 @@ function CheckoutPage() {
             setMessage("An error occurred. Please try again.");
         }
     };
-    
+
     return (
         <div className="min-h-screen bg-gray-100 flex justify-center items-center p-6">
             <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
