@@ -9,8 +9,16 @@ from django.db import transaction
 
 @api_view(['GET'])
 def get_products(request):
-    products = Product.objects.all()
-    serializer = ProductSerializer(products, many = True)
+    category_slug = request.GET.get('category')
+
+    if category_slug:
+        products = Product.objects.filter(
+            category__slug__iexact=category_slug
+        )
+    else:
+        products = Product.objects.all()
+
+    serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
 
 @api_view(['GET'])

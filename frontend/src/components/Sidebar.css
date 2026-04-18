@@ -1,0 +1,56 @@
+.sidebar {
+    position: fixed;
+    top: 70px;
+    left: 0;
+    height: calc(100vh - 70px);
+    width: 60px;
+    background: #1e293b;
+    overflow: hidden;
+    transition: width 0.3s ease;
+    padding-top: 10px;
+    z-index: 40;
+}
+
+.sidebar:hover {
+    width: 220px;
+}
+
+.sidebar-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 10px;
+    color: white;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    gap: 12px;
+    white-space: nowrap;
+}
+
+.sidebar-item:hover {
+    background: #334155;
+}
+
+.icon {
+    font-size: 20px;
+    min-width: 40px;
+    display: flex;
+    justify-content: center;
+}
+
+.text {
+    opacity: 0;
+    transform: translateX(-5px);
+    transition:
+        opacity 0.25s ease,
+        transform 0.25s ease;
+}
+
+.sidebar:hover .text {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+body.nav-hidden .sidebar {
+    top: 0;
+    height: 100vh;
+}
