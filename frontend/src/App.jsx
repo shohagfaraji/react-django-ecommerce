@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import ProductList from "../src/pages/ProductList";
 import ProductDetails from "../src/pages/ProductDetails";
+import CompareProducts from "./pages/CompareProducts";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import CartPage from "./pages/CartPage";
@@ -20,6 +21,7 @@ function App() {
                     <Route path="/" element={<ProductList />} />
                     <Route path="/products" element={<ProductList />} />
                     <Route path="/product/:id" element={<ProductDetails />} />
+                    <Route path="/compare" element={<CompareProducts />} />
                     <Route path="/cart" element={<CartPage />} />
 
                     <Route element={<PrivateRouter />}>
