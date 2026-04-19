@@ -27,6 +27,7 @@ function Login() {
 
             if (res.ok) {
                 saveTokens(data);
+                localStorage.setItem("username", form.username);
                 await fetchCart();
                 setMsg("Login successful!");
                 setTimeout(() => nav("/"), 800);
