@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useCart } from "../context/CartContext";
+import { useAlert } from "../context/AlertContext";
 
 function CompareProducts() {
+    const { showAlert } = useAlert();
     const [products, setProducts] = useState([]);
     const { addToCart } = useCart();
 
@@ -16,6 +18,7 @@ function CompareProducts() {
             return;
         }
         addToCart(productId);
+        showAlert("Added to cart");
     };
 
     if (products.length < 2) {

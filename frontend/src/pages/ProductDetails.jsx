@@ -1,8 +1,10 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useCart } from "../context/CartContext";
+import { useAlert } from "../context/AlertContext";
 
 function ProductDetails() {
+    const { showAlert } = useAlert();
     const { id } = useParams();
     const navigate = useNavigate();
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -39,6 +41,7 @@ function ProductDetails() {
             return;
         }
         addToCart(product.id);
+        showAlert("Added to cart successfully");
     };
 
     const handleCompare = () => {
@@ -58,7 +61,7 @@ function ProductDetails() {
         if (compareList.length === 2) {
             navigate("/compare");
         } else {
-            alert("Product added! Select one more product to compare.");
+            showAlert("First product added. Select another to compare", "info");
         }
     };
 
