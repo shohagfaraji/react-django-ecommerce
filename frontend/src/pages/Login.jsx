@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { saveTokens } from "../utils/auth";
 import { useCart } from "../context/CartContext";
+import { useAlert } from "../context/AlertContext";
 
 function Login() {
     const BASE = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -9,6 +10,7 @@ function Login() {
     const [msg, setMsg] = useState("");
     const nav = useNavigate();
     const { fetchCart } = useCart();
+    const { showAlert } = useAlert();
 
     const handleChange = (e) =>
         setForm({ ...form, [e.target.name]: e.target.value });
@@ -29,14 +31,14 @@ function Login() {
                 saveTokens(data);
                 localStorage.setItem("username", form.username);
                 await fetchCart();
-                setMsg("Login successful!");
+                showAlert("Login successful");
                 setTimeout(() => nav("/"), 800);
             } else {
                 setMsg(data.detail || "Invalid credentials");
             }
         } catch (err) {
             console.error(err);
-            setMsg("Login failed");
+            showAlert("Login failed");
         }
     };
 

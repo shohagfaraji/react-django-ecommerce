@@ -1,7 +1,9 @@
 import { useCart } from "../context/CartContext";
 import { Link } from "react-router-dom";
+import { useAlert } from "../context/AlertContext";
 
 function CartPage() {
+    const { showAlert } = useAlert();
     const { cartItems, total, removeFromCart, updateQuantity } = useCart();
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
@@ -63,7 +65,10 @@ function CartPage() {
                                 </button>
                                 <button
                                     className="text-red-500"
-                                    onClick={() => removeFromCart(item.id)}
+                                    onClick={() => {
+                                        removeFromCart(item.id);
+                                        showAlert("Removed from cart", "info");
+                                    }}
                                 >
                                     Remove
                                 </button>

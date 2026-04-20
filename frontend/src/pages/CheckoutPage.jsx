@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../utils/auth";
+import { useAlert } from "../context/AlertContext";
 import { useCart } from "../context/CartContext";
 
 function CheckoutPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const navigate = useNavigate();
+    const { showAlert } = useAlert();
     const { clearCart } = useCart();
 
     const [form, setForm] = useState({
@@ -40,7 +42,7 @@ function CheckoutPage() {
             const data = await res.json();
 
             if (res.ok) {
-                setMessage("Order placed successfully!");
+                showAlert("Order placed successfully 🎉");
                 clearCart();
                 setTimeout(() => {
                     navigate("/");
