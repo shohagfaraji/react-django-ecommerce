@@ -7,6 +7,7 @@ function ProductList() {
     /* ================= URL PARAM ================= */
     const [searchParams] = useSearchParams();
     const category = searchParams.get("category");
+    const search = searchParams.get("search");
 
     /* ================= STATE ================= */
     const [products, setProducts] = useState([]);
@@ -22,9 +23,15 @@ function ProductList() {
     useEffect(() => {
         const controller = new AbortController();
 
-        const url = category
-            ? `${BASEURL}/api/products/?category=${category}`
-            : `${BASEURL}/api/products/`;
+        let url = `${BASEURL}/api/products/`;
+
+        if (category) {
+            url += `?category=${category}`;
+        }
+
+        if (search) {
+            url += category ? `&search=${search}` : `?search=${search}`;
+        }
 
         fetch(url, { signal: controller.signal })
             .then((res) => {
@@ -43,7 +50,7 @@ function ProductList() {
             });
 
         return () => controller.abort();
-    }, [category]);
+    }, [category, search]);
 
     /* ================= COUNTDOWN TIMER ================= */
     useEffect(() => {
@@ -89,7 +96,7 @@ function ProductList() {
     return (
         <div className="bg-gray-100 min-h-screen pt-20 pb-10 space-y-10">
             {/* ================= HERO SECTION ================= */}
-            {!category && (
+            {!category && !search && (
                 <section className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white p-12 mx-4 rounded-2xl shadow-lg">
                     {/* background pattern */}
                     <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle,_white_1px,_transparent_1px)] bg-[length:18px_18px]" />
