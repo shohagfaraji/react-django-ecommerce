@@ -6,17 +6,26 @@ from rest_framework import status
 from .models import Product, Category, Cart, CartItem, Order, OrderItem
 from .serializers import ProductSerializer, CategorySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer
 from django.db import transaction
+from django.db.models import Q
 
 @api_view(['GET'])
 def get_products(request):
     category_slug = request.GET.get('category')
+    search_query = request.GET.get('search')
 
+    products = Product.objects.all()
+
+    # CATEGORY FILTER
     if category_slug:
-        products = Product.objects.filter(
-            category__slug__iexact=category_slug
+        products = products.filter(category__slug__iexact=category_slug)
+
+    # SEARCH FILTER
+    if search_query:
+        products = products.filter(
+            Q(name__icontains=search_query) |
+            Q(description__icontains=search_query) |
+            Q(category__name__icontains=search_query)
         )
-    else:
-        products = Product.objects.all()
 
     serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
