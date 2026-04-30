@@ -7,6 +7,7 @@ from .models import Product, Category, Cart, CartItem, Order, OrderItem
 from .serializers import ProductSerializer, CategorySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer
 from django.db import transaction
 from django.db.models import Q
+from django.http import JsonResponse
 
 @api_view(['GET'])
 def get_products(request):
@@ -151,3 +152,9 @@ def register(request):
         user = serializer.save()
         return Response({"message" : "User created successfully!", "user" : UserSerializer(user).data}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+def create_superuser(request):
+    if not User.objects.filter(username='admin').exists():
+        User.objects.create_superuser('admin', 'shohag@gmail.com', '131131')
+        return JsonResponse({'message': 'Superuser created'})
+    return JsonResponse({'message': 'Already exists'})
