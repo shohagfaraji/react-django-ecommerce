@@ -15,7 +15,7 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    "voltedge-backend.onrender.com"
+    "react-django-ecommerce-1-kxh3.onrender.com"
 ]
 
 INSTALLED_APPS = [
