@@ -42,7 +42,7 @@ function CompareProducts() {
                         className="bg-white shadow-lg rounded-2xl p-6 text-center"
                     >
                         <img
-                            src={product.image}
+                            src={product.image_url}
                             alt={product.name}
                             className="w-full h-48 object-contain bg-gray-50 rounded-lg mb-4 p-2 mx-auto"
                         />

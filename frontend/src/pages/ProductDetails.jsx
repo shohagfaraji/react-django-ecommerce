@@ -70,7 +70,7 @@ function ProductDetails() {
             <div className="bg-white shadow-lg rounded-2xl p-8 max-w-3xl w-full">
                 <div className="flex flex-col md:flex-row gap-8">
                     <img
-                        src={product.image}
+                        src={product.image_url}
                         alt={product.name}
                         className="w-full md:w-1/2 rounded-lg"
                     />
