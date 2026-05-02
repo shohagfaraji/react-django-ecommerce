@@ -2,7 +2,6 @@
 set -o errexit
 
 pip install --upgrade pip
-pip install "Django==5.1.7"
 pip install -r requirements.txt
-python manage.py collectstatic --no-input --clear
+python manage.py collectstatic --noinput --clear
 python manage.py migrate
