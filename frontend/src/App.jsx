@@ -1,6 +1,6 @@
+import { useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import { AlertProvider } from "./context/AlertContext";
-
 import ProductList from "../src/pages/ProductList";
 import ProductDetails from "../src/pages/ProductDetails";
 import CompareProducts from "./pages/CompareProducts";
@@ -13,6 +13,13 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 
 function App() {
+    // Ping backend on app load to wake up Render free tier
+    useEffect(() => {
+        fetch(`${import.meta.env.VITE_DJANGO_BASE_URL}/api/categories/`).catch(
+            () => {},
+        ); // silent — just waking the server
+    }, []);
+
     return (
         <AlertProvider>
             <Router>

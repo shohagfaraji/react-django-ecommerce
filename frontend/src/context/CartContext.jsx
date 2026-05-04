@@ -28,17 +28,36 @@ export const CartProvider = ({ children }) => {
     }, []);
 
     const addToCart = async (productId) => {
+        // Optimistic update — increment count immediately, no waiting
+        setCartItems((prev) => {
+            const existing = prev.find(
+                (i) => i.product === productId || i.product?.id === productId,
+            );
+            if (existing) {
+                return prev.map((i) =>
+                    i.product === productId || i.product?.id === productId
+                        ? { ...i, quantity: i.quantity + 1 }
+                        : i,
+                );
+            }
+            // New item placeholder so count updates instantly
+            return [
+                ...prev,
+                { id: `temp-${productId}`, product: productId, quantity: 1 },
+            ];
+        });
+
         try {
             await authFetch(`${BASEURL}/api/cart/add/`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ product_id: productId }),
             });
+            // Sync real state from server after optimistic update
             fetchCart();
         } catch (error) {
             console.error("Error adding to cart:", error);
+            fetchCart(); // Revert on error by re-syncing
         }
     };
 

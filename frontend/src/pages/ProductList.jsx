@@ -23,14 +23,14 @@ function ProductList() {
     useEffect(() => {
         const controller = new AbortController();
 
-        let url = `${BASEURL}/api/products/`;
+        let url = `${BASEURL}/api/products/?limit=16`;
 
         if (category) {
-            url += `?category=${category}`;
+            url += `&category=${category}`;
         }
 
         if (search) {
-            url += category ? `&search=${search}` : `?search=${search}`;
+            url += `&search=${search}`;
         }
 
         fetch(url, { signal: controller.signal })
@@ -75,16 +75,8 @@ function ProductList() {
 
     /* ================= DATA DERIVATION ================= */
 
-    // Placeholder logic — should be replaced with backend-driven ranking
-    const topSelling = products.slice(0, 8);
-
-    // New arrivals sorted by created_at if available
-    const newArrivals = [...products]
-        .sort((a, b) => {
-            if (!a.created_at || !b.created_at) return 0;
-            return new Date(b.created_at) - new Date(a.created_at);
-        })
-        .slice(0, 8);
+    const newArrivals = products.slice(0, 8);
+    const topSelling = products.slice(8, 16);
 
     /* ================= LOADING & ERROR ================= */
     if (loading) return <div className="pt-24 text-center">Loading...</div>;
