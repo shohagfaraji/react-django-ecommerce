@@ -74,19 +74,20 @@ function ProductList() {
     const { days, hrs, mins, secs } = formatTime();
 
     /* ================= DATA DERIVATION ================= */
-
+    const isFiltered = !!(category || search);
     const newArrivals = products.slice(0, 8);
-    const topSelling = products.slice(8, 16);
+    const topSelling = isFiltered
+        ? products.slice(0, 8)
+        : products.slice(8, 16);
 
     /* ================= LOADING & ERROR ================= */
-    if (loading) return <div className="pt-24 text-center">Loading...</div>;
 
     if (error)
         return <div className="pt-24 text-center text-red-500">{error}</div>;
 
     /* ================= UI ================= */
     return (
-        <div className="bg-gray-100 min-h-screen pt-20 pb-10 space-y-10">
+        <div className="bg-gray-100 min-h-screen pt-28 md:pt-20 pb-10 space-y-10">
             {/* ================= HERO SECTION ================= */}
             {!category && !search && (
                 <section className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white p-12 mx-4 rounded-2xl shadow-lg">
@@ -123,17 +124,27 @@ function ProductList() {
             )}
 
             {/* ================= TOP SELLING ================= */}
-            <Section
-                title="Weekly Top Selling"
-                icon={<FaStar />}
-                products={topSelling}
-            />
+            {!isFiltered && (
+                <Section
+                    title="Weekly Top Selling"
+                    icon={<FaStar />}
+                    products={topSelling}
+                    loading={loading}
+                />
+            )}
 
-            {/* ================= NEW ARRIVALS ================= */}
+            {/* ================= NEW ARRIVALS / RESULTS ================= */}
             <Section
-                title="New Arrivals"
+                title={
+                    isFiltered
+                        ? category
+                            ? `${category.replace(/-/g, " ")}`
+                            : "Search Results"
+                        : "New Arrivals"
+                }
                 icon={<FaFire />}
                 products={newArrivals}
+                loading={loading}
             />
         </div>
     );
@@ -153,8 +164,20 @@ function TimeBox({ label, value }) {
     );
 }
 
-/* ================= REUSABLE SECTION ================= */
-function Section({ title, icon, products }) {
+function SkeletonCard() {
+    return (
+        <div className="bg-white rounded-xl overflow-hidden shadow-sm animate-pulse">
+            <div className="bg-gray-200 w-full aspect-square" />
+            <div className="p-3 space-y-2">
+                <div className="bg-gray-200 h-4 rounded w-3/4" />
+                <div className="bg-gray-200 h-4 rounded w-1/2" />
+                <div className="bg-gray-200 h-8 rounded w-full mt-2" />
+            </div>
+        </div>
+    );
+}
+
+function Section({ title, icon, products, loading }) {
     return (
         <section className="px-6">
             <div className="flex justify-between items-center mb-4">
@@ -164,10 +187,14 @@ function Section({ title, icon, products }) {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                {loading
+                    ? Array.from({ length: 4 }).map((_, i) => (
+                          <SkeletonCard key={i} />
+                      ))
+                    : products.map((product) => (
+                          <ProductCard key={product.id} product={product} />
+                      ))}
             </div>
         </section>
     );

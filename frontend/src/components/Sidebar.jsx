@@ -28,6 +28,7 @@ import {
     FaServer,
     FaTools,
     FaSdCard,
+    FaTimes,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
@@ -56,25 +57,42 @@ const categories = [
     { icon: <FaVideo />, name: "Security Cameras" },
 ];
 
-function Sidebar() {
+function Sidebar({ isOpen, onClose }) {
     const navigate = useNavigate();
     const toSlug = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
+    const handleCategoryClick = (name) => {
+        navigate(`/products?category=${toSlug(name)}`);
+        onClose(); // close sidebar on mobile after picking a category
+    };
+
     return (
-        <div className="sidebar">
-            {categories.map((cat, index) => (
-                <div
-                    key={index}
-                    className="sidebar-item"
-                    onClick={() =>
-                        navigate(`/products?category=${toSlug(cat.name)}`)
-                    }
+        <>
+            {/* Backdrop — only renders in CSS on mobile */}
+            {isOpen && <div className="sidebar-backdrop" onClick={onClose} />}
+
+            <div className={`sidebar ${isOpen ? "mobile-open" : ""}`}>
+                {/* Close button — mobile only */}
+                <button
+                    className="md:hidden absolute top-4 right-4 text-white"
+                    onClick={onClose}
+                    aria-label="Close menu"
                 >
-                    <span className="icon">{cat.icon}</span>
-                    <span className="text">{cat.name}</span>
-                </div>
-            ))}
-        </div>
+                    <FaTimes size={18} />
+                </button>
+
+                {categories.map((cat, index) => (
+                    <div
+                        key={index}
+                        className="sidebar-item"
+                        onClick={() => handleCategoryClick(cat.name)}
+                    >
+                        <span className="icon">{cat.icon}</span>
+                        <span className="text">{cat.name}</span>
+                    </div>
+                ))}
+            </div>
+        </>
     );
 }
 
