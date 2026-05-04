@@ -1,7 +1,6 @@
 from django.urls import path
 from . import views
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .views import create_superuser
 
 urlpatterns = [
     path('register/', views.register),
@@ -16,5 +15,4 @@ urlpatterns = [
     path('cart/remove/', views.remove_from_cart),
     path('cart/update/', views.update_cart_quantity),
     path('orders/create/', views.create_order),
-    path('create-superuser/', create_superuser),
 ]

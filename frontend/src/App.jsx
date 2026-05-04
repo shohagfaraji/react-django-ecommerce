@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { AlertProvider } from "./context/AlertContext";
 
 import ProductList from "../src/pages/ProductList";
@@ -13,13 +14,25 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 
 function App() {
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    useEffect(() => {
+        fetch(`${import.meta.env.VITE_DJANGO_BASE_URL}/api/categories/`).catch(
+            () => {},
+        );
+    }, []);
+
     return (
         <AlertProvider>
             <Router>
-                <Navbar />
-                <Sidebar />
+                <Navbar onMenuToggle={() => setSidebarOpen((prev) => !prev)} />
+                <Sidebar
+                    isOpen={sidebarOpen}
+                    onClose={() => setSidebarOpen(false)}
+                />
 
-                <div style={{ marginLeft: "60px", padding: "20px" }}>
+                {/* On desktop: respect the 60px collapsed sidebar. On mobile: no left margin */}
+                <div className="md:ml-[60px] px-3 md:px-5 pt-1">
                     <Routes>
                         <Route path="/" element={<ProductList />} />
                         <Route path="/products" element={<ProductList />} />
