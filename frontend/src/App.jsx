@@ -12,6 +12,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import PrivateRouter from "./components/PrivateRouter";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Footer from "./components/Footer";
 
 function App() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -52,6 +53,7 @@ function App() {
                         <Route path="/login" element={<Login />} />
                         <Route path="/signup" element={<Signup />} />
                     </Routes>
+                    <Footer />
                 </div>
             </Router>
         </AlertProvider>
