@@ -1,13 +1,19 @@
 .sidebar {
     position: fixed;
-    top: 70px;
+    top: 64px;
     left: 0;
     height: calc(100vh - 70px);
     width: 60px;
     background: #1e293b;
-    overflow: hidden;
-    transition: width 0.3s ease;
-    padding-top: 10px;
+
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    transition:
+        width 0.3s ease,
+        top 0.3s ease,
+        height 0.3s ease;
+
     z-index: 40;
 }
 

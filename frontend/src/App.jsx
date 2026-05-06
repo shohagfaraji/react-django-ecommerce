@@ -31,8 +31,7 @@ function App() {
                     onClose={() => setSidebarOpen(false)}
                 />
 
-                {/* On desktop: respect the 60px collapsed sidebar. On mobile: no left margin */}
-                <div className="md:ml-[60px] px-3 md:px-5 pt-1">
+                <div className="md:ml-[60px]">
                     <Routes>
                         <Route path="/" element={<ProductList />} />
                         <Route path="/products" element={<ProductList />} />
