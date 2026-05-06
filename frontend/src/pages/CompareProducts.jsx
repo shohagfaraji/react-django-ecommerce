@@ -30,8 +30,8 @@ function CompareProducts() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-100 pt-18 pb-10 px-4">
-            <h1 className="text-3xl font-bold text-center mb-8">
+        <div className="min-h-screen bg-gray-100 pt-30 md:pt-20 pb-10 px-4">
+            <h1 className="text-3xl font-bold text-center mb-4">
                 Compare Products
             </h1>
 
