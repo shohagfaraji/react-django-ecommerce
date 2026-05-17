@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useCart } from "../context/CartContext";
 import { useAlert } from "../context/AlertContext";
+import { FaShoppingCart, FaBalanceScale } from "react-icons/fa";
 
 function ProductDetails() {
     const { showAlert } = useAlert();
@@ -91,15 +92,17 @@ function ProductDetails() {
                         <div className="flex flex-col sm:flex-row gap-3">
                             <button
                                 onClick={handleAddToCart}
-                                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 cursor-pointer flex items-center justify-center gap-2 transition"
                             >
-                                Add to Cart 🛒
+                                <FaShoppingCart />
+                                Add to Cart
                             </button>
 
                             <button
                                 onClick={handleCompare}
-                                className="border border-blue-600 text-blue-600 px-6 py-2 rounded-lg hover:bg-blue-50"
+                                className="border border-blue-600 text-blue-600 px-6 py-2 rounded-lg hover:bg-blue-50 cursor-pointer flex items-center justify-center gap-2 transition"
                             >
+                                <FaBalanceScale />
                                 Compare
                             </button>
                         </div>
