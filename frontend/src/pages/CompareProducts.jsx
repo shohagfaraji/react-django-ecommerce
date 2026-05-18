@@ -61,7 +61,7 @@ function CompareProducts() {
 
                         <button
                             onClick={() => handleAddToCart(product.id)}
-                            className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition"
+                            className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 cursor-pointer transition"
                         >
                             Add to Cart 🛒
                         </button>
@@ -75,7 +75,7 @@ function CompareProducts() {
                         localStorage.removeItem("compareList");
                         window.location.href = "/";
                     }}
-                    className="text-blue-600 hover:underline"
+                    className="text-blue-600 cursor-pointer hover:underline"
                 >
                     ← Back to Home
                 </button>

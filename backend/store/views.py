@@ -152,6 +152,22 @@ def create_order(request):
         "order_id": order.id
     }, status=201)
 
+@api_view(['GET'])
+def get_weekly_top_selling(request):
+    """Returns products marked as Weekly Top Selling by admin."""
+    products = Product.objects.filter(is_weekly_top=True).select_related('category').order_by('-created_at')
+    serializer = ProductSerializer(products, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+def get_new_arrivals(request):
+    """Returns all products ordered by newest first."""
+    products = Product.objects.select_related('category').order_by('-created_at')
+    serializer = ProductSerializer(products, many=True)
+    return Response(serializer.data)
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import ProductCard from "../components/ProductCard.jsx";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { FaFire, FaStar, FaBolt } from "react-icons/fa";
 
 function ProductList() {
@@ -23,7 +23,7 @@ function ProductList() {
     useEffect(() => {
         const controller = new AbortController();
 
-        let url = `${BASEURL}/api/products/?limit=16`;
+        let url = `${BASEURL}/api/products/?limit=20`;
 
         if (category) {
             url += `&category=${category}`;
@@ -75,10 +75,10 @@ function ProductList() {
 
     /* ================= DATA DERIVATION ================= */
     const isFiltered = !!(category || search);
-    const newArrivals = products.slice(0, 8);
+    const newArrivals = products.slice(0, 10);
     const topSelling = isFiltered
-        ? products.slice(0, 8)
-        : products.slice(8, 16);
+        ? products.slice(0, 10)
+        : products.slice(10, 20);
 
     /* ================= LOADING & ERROR ================= */
 
@@ -130,6 +130,7 @@ function ProductList() {
                     icon={<FaStar />}
                     products={topSelling}
                     loading={loading}
+                    viewAllLink="/weekly-top-selling"
                 />
             )}
 
@@ -145,6 +146,7 @@ function ProductList() {
                 icon={<FaFire />}
                 products={newArrivals}
                 loading={loading}
+                viewAllLink={!isFiltered ? "/new-arrivals" : undefined}
             />
         </div>
     );
@@ -177,7 +179,7 @@ function SkeletonCard() {
     );
 }
 
-function Section({ title, icon, products, loading }) {
+function Section({ title, icon, products, loading, viewAllLink }) {
     return (
         <section className="px-6">
             <div className="flex justify-between items-center mb-4">
@@ -185,11 +187,19 @@ function Section({ title, icon, products, loading }) {
                     {icon}
                     <h2 className="text-2xl font-bold">{title}</h2>
                 </div>
+                {viewAllLink && (
+                    <Link
+                        to={viewAllLink}
+                        className="text-sm font-semibold text-teal-600 border border-teal-600 px-4 py-1.5 rounded-lg hover:bg-teal-600 hover:text-white transition-colors"
+                    >
+                        View All →
+                    </Link>
+                )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {loading
-                    ? Array.from({ length: 4 }).map((_, i) => (
+                    ? Array.from({ length: 5 }).map((_, i) => (
                           <SkeletonCard key={i} />
                       ))
                     : products.map((product) => (

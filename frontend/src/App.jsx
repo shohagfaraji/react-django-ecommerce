@@ -5,6 +5,8 @@ import { AlertProvider } from "./context/AlertContext";
 import ProductList from "../src/pages/ProductList";
 import ProductDetails from "../src/pages/ProductDetails";
 import CompareProducts from "./pages/CompareProducts";
+import WeeklyTopSelling from "./pages/WeeklyTopSelling";
+import NewArrivals from "./pages/NewArrivals";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import CartPage from "./pages/CartPage";
@@ -41,6 +43,11 @@ function App() {
                             element={<ProductDetails />}
                         />
                         <Route path="/compare" element={<CompareProducts />} />
+                        <Route
+                            path="/weekly-top-selling"
+                            element={<WeeklyTopSelling />}
+                        />
+                        <Route path="/new-arrivals" element={<NewArrivals />} />
                         <Route path="/cart" element={<CartPage />} />
 
                         <Route element={<PrivateRouter />}>

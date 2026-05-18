@@ -16,6 +16,7 @@ class Product(models.Model):
     price = models.DecimalField(max_digits = 10, decimal_places = 2)
     image = CloudinaryField('image', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add = True)
+    is_weekly_top = models.BooleanField(default=False, help_text="Mark as Weekly Top Selling product")
 
     class Meta:
         indexes = [
