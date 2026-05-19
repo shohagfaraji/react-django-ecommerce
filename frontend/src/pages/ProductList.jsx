@@ -102,7 +102,7 @@ function ProductList() {
 
     /* ================= UI ================= */
     return (
-        <div className="bg-gray-100 min-h-screen pt-28 md:pt-20 pb-10 space-y-10">
+        <div className="bg-gray-100 min-h-screen pt-31 md:pt-20 pb-10 space-y-10">
             {/* ================= HERO SECTION ================= */}
             {!category && !search && offerBanner && (
                 <OfferHero
