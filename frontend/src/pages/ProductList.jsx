@@ -118,7 +118,7 @@ function ProductList() {
             {/* ================= TOP SELLING ================= */}
             {!isFiltered && (
                 <Section
-                    title="Weekly Top Selling"
+                    title="Top Selling"
                     icon={<FaStar />}
                     products={topSelling}
                     loading={loading}
@@ -493,7 +493,7 @@ function SkeletonCard() {
 /* ================= SECTION ================= */
 function Section({ title, icon, products, loading, viewAllLink }) {
     return (
-        <section className="px-6">
+        <section className="px-2 sm:px-6">
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
                     {icon}
@@ -504,12 +504,12 @@ function Section({ title, icon, products, loading, viewAllLink }) {
                         to={viewAllLink}
                         className="text-sm font-semibold text-teal-600 border border-teal-600 px-4 py-1.5 rounded-lg hover:bg-teal-600 hover:text-white transition-colors"
                     >
-                        View All →
+                        View All
                     </Link>
                 )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
                 {loading
                     ? Array.from({ length: 5 }).map((_, i) => (
                           <SkeletonCard key={i} />
