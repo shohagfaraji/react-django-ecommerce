@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Product, UserProfile, Order, OrderItem
+from .models import Category, Product, UserProfile, Order, OrderItem, OfferBanner
 
 
 def mark_weekly_top(modeladmin, request, queryset):
@@ -20,6 +20,13 @@ class ProductAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description')
     ordering = ('-created_at',)
     actions = [mark_weekly_top, unmark_weekly_top]
+
+@admin.register(OfferBanner)
+class OfferBannerAdmin(admin.ModelAdmin):
+    list_display = ('title', 'theme', 'max_discount', 'show_from', 'event_start', 'event_end', 'is_active')
+    list_editable = ('is_active',)
+    list_filter = ('theme', 'is_active')
+    ordering = ('-show_from',)
 
 
 admin.site.register(Category)

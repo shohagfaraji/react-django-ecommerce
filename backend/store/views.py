@@ -2,8 +2,9 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
-from .models import Product, Category, Cart, CartItem, Order, OrderItem
-from .serializers import ProductSerializer, CategorySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer
+from .models import Product, Category, Cart, CartItem, Order, OrderItem, OfferBanner
+from .serializers import ProductSerializer, CategorySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, OfferBannerSerializer
+from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q
 
@@ -176,3 +177,20 @@ def register(request):
         user = serializer.save()
         return Response({"message": "User created successfully!", "user": UserSerializer(user).data}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def get_active_offer_banner(request):
+    """Returns the single most relevant active banner to show right now."""
+    now = timezone.now()
+    banner = OfferBanner.objects.filter(
+        is_active=True,
+        show_from__lte=now,
+        event_end__gte=now
+    ).first()
+
+    if not banner:
+        return Response(None)
+
+    serializer = OfferBannerSerializer(banner)
+    return Response(serializer.data)

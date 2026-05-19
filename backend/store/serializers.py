@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Product, Category, Cart, CartItem
+from .models import Product, Category, Cart, CartItem, OfferBanner
 from django.contrib.auth.models import User
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -66,3 +66,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         password = validated_data['password']
         user = User.objects.create_user(username=username, email=email, password=password)
         return user
+
+class OfferBannerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OfferBanner
+        fields = '__all__'

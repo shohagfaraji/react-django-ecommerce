@@ -75,3 +75,30 @@ class CartItem(models.Model):
     def __str__(self):
         return f"{self.product.name} x{self.quantity}"
     
+class OfferBanner(models.Model):
+    THEME_CHOICES = [
+        ('eid_ul_fitr', 'Eid ul Fitr'),
+        ('eid_ul_adha', 'Eid ul Adha'),
+        ('winter', 'Winter Sale'),
+        ('summer', 'Summer Sale'),
+        ('monsoon', 'Monsoon Sale'),
+        ('puja', 'Puja Season'),
+        ('default', 'Default'),
+    ]
+
+    title = models.CharField(max_length=200)
+    tagline = models.CharField(max_length=300, blank=True)
+    max_discount = models.PositiveIntegerField(help_text="Max discount % to show e.g. 50")
+    theme = models.CharField(max_length=20, choices=THEME_CHOICES, default='default')
+
+    show_from = models.DateTimeField(help_text="When to start showing this banner on site")
+    event_start = models.DateTimeField(help_text="Offer starts: countdown shows time left until this")
+    event_end = models.DateTimeField(help_text="Offer ends: countdown shows time left to end after start")
+
+    is_active = models.BooleanField(default=True, help_text="Master switch to enable/disable this banner")
+
+    class Meta:
+        ordering = ['-show_from']
+
+    def __str__(self):
+        return self.title
