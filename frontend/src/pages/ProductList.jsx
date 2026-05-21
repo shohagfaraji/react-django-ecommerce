@@ -13,6 +13,7 @@ function ProductList() {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [topSelling, setTopSelling] = useState([]);
 
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
@@ -25,7 +26,7 @@ function ProductList() {
     useEffect(() => {
         const controller = new AbortController();
 
-        let url = `${BASEURL}/api/products/?limit=20`;
+        let url = `${BASEURL}/api/products/?limit=10`;
 
         if (category) url += `&category=${category}`;
         if (search) url += `&search=${search}`;
@@ -78,6 +79,14 @@ function ProductList() {
         return () => clearInterval(timer);
     }, []);
 
+    /* ================= Top Selling ================= */
+    useEffect(() => {
+        fetch(`${BASEURL}/api/products/weekly-top-selling/`)
+            .then((res) => res.json())
+            .then((data) => setTopSelling(data.slice(0, 10)))
+            .catch(() => {});
+    }, []);
+
     /* ================= FORMAT TIME ================= */
     const formatTime = (seconds) => {
         const days = Math.floor(seconds / (3600 * 24));
@@ -91,10 +100,6 @@ function ProductList() {
 
     /* ================= DATA DERIVATION ================= */
     const isFiltered = !!(category || search);
-    const newArrivals = products.slice(0, 10);
-    const topSelling = isFiltered
-        ? products.slice(0, 10)
-        : products.slice(10, 20);
 
     /* ================= LOADING & ERROR ================= */
     if (error)
@@ -136,7 +141,7 @@ function ProductList() {
                         : "New Arrivals"
                 }
                 icon={<FaFire />}
-                products={newArrivals}
+                products={products}
                 loading={loading}
                 viewAllLink={!isFiltered ? "/new-arrivals" : undefined}
             />
