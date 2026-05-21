@@ -95,7 +95,7 @@ function CheckoutPage() {
                         name="payment_method"
                         value={form.payment_method}
                         onChange={handleChange}
-                        className="w-full border rounded-lg p-2"
+                        className="w-full border cursor-pointer rounded-lg p-2"
                     >
                         <option value="COD">Cash on Delivery</option>
                         <option value="CreditCard">Online Payment</option>
@@ -103,7 +103,7 @@ function CheckoutPage() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-600 transition duration-300"
+                        className="w-full bg-blue-600 cursor-pointer text-white py-2 rounded-lg hover:bg-blue-600 transition duration-300"
                     >
                         {loading ? "Processing..." : "Place Order"}
                     </button>

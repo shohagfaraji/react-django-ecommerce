@@ -76,7 +76,7 @@ function Signup() {
                         required
                         className="w-full p-2 border rounded"
                     />
-                    <button className="w-full bg-blue-600 text-white py-2 rounded">
+                    <button className="w-full bg-blue-600 cursor-pointer text-white py-2 rounded">
                         Create Account
                     </button>
                 </form>

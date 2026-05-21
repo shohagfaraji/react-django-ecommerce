@@ -179,7 +179,7 @@ function OfferHero({ banner, days, hrs, mins, secs, countdownLabel }) {
                     <TimeBox label="Seconds" value={secs} />
                 </div>
 
-                <button className="mt-10 bg-white text-teal-700 px-8 py-3 rounded-xl font-semibold hover:bg-gray-100 flex items-center gap-2 mx-auto">
+                <button className="mt-10 bg-white text-teal-700 px-8 py-3 rounded-xl cursor-pointer font-semibold hover:bg-gray-100 flex items-center gap-2 mx-auto">
                     <FaBolt />
                     Shop Deals
                 </button>

@@ -44,7 +44,7 @@ function CartPage() {
                             <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0">
                                 <div className="flex items-center gap-2">
                                     <button
-                                        className="bg-gray-200 hover:bg-gray-300 w-8 h-8 rounded-full font-bold text-lg leading-none"
+                                        className="bg-gray-200 hover:bg-gray-300 w-8 h-8 rounded-full cursor-pointer font-bold text-lg leading-none"
                                         onClick={() =>
                                             updateQuantity(
                                                 item.id,
@@ -58,7 +58,7 @@ function CartPage() {
                                         {item.quantity}
                                     </span>
                                     <button
-                                        className="bg-gray-200 hover:bg-gray-300 w-8 h-8 rounded-full font-bold text-lg leading-none"
+                                        className="bg-gray-200 hover:bg-gray-300 w-8 h-8 rounded-full cursor-pointer font-bold text-lg leading-none"
                                         onClick={() =>
                                             updateQuantity(
                                                 item.id,
@@ -70,7 +70,7 @@ function CartPage() {
                                     </button>
                                 </div>
                                 <button
-                                    className="text-red-500 hover:text-red-700 text-sm font-medium"
+                                    className="text-red-500 hover:text-red-700 cursor-pointer text-sm font-medium"
                                     onClick={() => {
                                         removeFromCart(item.id);
                                         showAlert("Removed from cart", "info");

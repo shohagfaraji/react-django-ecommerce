@@ -102,7 +102,7 @@ function Navbar({ onMenuToggle }) {
                     {/* Cart */}
                     <Link
                         to="/cart"
-                        className="relative text-gray-800 hover:text-gray-600"
+                        className="relative text-gray-800 hover:text-gray-600 cursor-pointer"
                     >
                         <FaShoppingCart size={22} />
                         {cartCount > 0 && (
@@ -133,7 +133,7 @@ function Navbar({ onMenuToggle }) {
                                 </span>
                                 <button
                                     onClick={handleLogout}
-                                    className="text-xs text-gray-500 hover:text-red-500 text-left"
+                                    className="text-xs text-gray-500 cursor-pointer hover:text-red-500 text-left"
                                 >
                                     Logout
                                 </button>
@@ -155,7 +155,7 @@ function Navbar({ onMenuToggle }) {
                     />
                     <button
                         type="submit"
-                        className="bg-gray-800 text-white px-4 h-10 flex items-center justify-center rounded-r-full hover:bg-gray-700"
+                        className="bg-gray-800 text-white px-4 h-10 flex items-center justify-center cursor-pointer rounded-r-full hover:bg-gray-700"
                     >
                         <FaSearch size={14} />
                     </button>
