@@ -16,8 +16,17 @@ export const CartProvider = ({ children }) => {
         try {
             const res = await authFetch(`${BASEURL}/api/cart/`);
             const data = await res.json();
-            setCartItems(data.items || []);
-            setTotal(data.total || 0);
+            const items = data.items || [];
+            setCartItems(items);
+
+            // Recalculate total using discounted price when offer is active
+            const computedTotal = items.reduce((sum, item) => {
+                const unitPrice = item.product_discounted_price
+                    ? parseFloat(item.product_discounted_price)
+                    : parseFloat(item.product_price);
+                return sum + unitPrice * item.quantity;
+            }, 0);
+            setTotal(computedTotal);
         } catch (error) {
             console.error("Error fetching cart:", error);
         }

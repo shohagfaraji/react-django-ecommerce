@@ -85,9 +85,24 @@ function ProductDetails() {
                             {product.description}
                         </p>
 
-                        <p className="text-2xl text-green-600 mb-6">
-                            ${product.price}
-                        </p>
+                        {product.active_discount > 0 &&
+                        product.discounted_price ? (
+                            <div className="flex items-center gap-3 mb-6 flex-wrap">
+                                <span className="bg-red-500 text-white text-sm font-bold px-2 py-1 rounded-md">
+                                    -{product.active_discount}%
+                                </span>
+                                <span className="text-red-400 line-through text-xl">
+                                    ${product.price}
+                                </span>
+                                <span className="text-2xl text-emerald-600 font-bold">
+                                    ${product.discounted_price}
+                                </span>
+                            </div>
+                        ) : (
+                            <p className="text-2xl text-green-600 mb-6">
+                                ${product.price}
+                            </p>
+                        )}
 
                         <div className="flex flex-col sm:flex-row gap-3">
                             <button
