@@ -10,6 +10,8 @@ class CategorySerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     image_url = serializers.SerializerMethodField()
+    active_discount = serializers.SerializerMethodField()
+    discounted_price = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -18,6 +20,26 @@ class ProductSerializer(serializers.ModelSerializer):
     def get_image_url(self, obj):
         if obj.image:
             return obj.image.url
+        return None
+
+    def get_active_discount(self, obj):
+        """Returns discount_percentage only if the linked offer banner is currently active."""
+        if obj.discount_percentage <= 0 or not obj.offer_banner:
+            return 0
+        from django.utils import timezone
+        now = timezone.now()
+        b = obj.offer_banner
+        if b.is_active and b.show_from <= now <= b.event_end:
+            return obj.discount_percentage
+        return 0
+
+    def get_discounted_price(self, obj):
+        """Returns the sale price if offer is active, else None."""
+        discount = self.get_active_discount(obj)
+        if discount > 0:
+            from decimal import Decimal, ROUND_HALF_UP
+            sale = obj.price * (1 - Decimal(discount) / 100)
+            return str(sale.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         return None
 
 class CartItemSerializer(serializers.ModelSerializer):

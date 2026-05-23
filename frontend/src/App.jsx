@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { AlertProvider } from "./context/AlertContext";
 
+import SaleProducts from "./pages/SaleProducts";
 import ProductList from "../src/pages/ProductList";
 import ProductDetails from "../src/pages/ProductDetails";
 import CompareProducts from "./pages/CompareProducts";
@@ -48,6 +49,7 @@ function App() {
                             element={<WeeklyTopSelling />}
                         />
                         <Route path="/new-arrivals" element={<NewArrivals />} />
+                        <Route path="/sale" element={<SaleProducts />} />
                         <Route path="/cart" element={<CartPage />} />
 
                         <Route element={<PrivateRouter />}>

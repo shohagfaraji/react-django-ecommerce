@@ -10,13 +10,25 @@ class Category(models.Model):
         return self.name
 
 class Product(models.Model):
-    category = models.ForeignKey(Category, related_name='products', on_delete = models.CASCADE)
-    name = models.CharField(max_length = 200)
-    description = models.TextField(blank = True)
-    price = models.DecimalField(max_digits = 10, decimal_places = 2)
+    category = models.ForeignKey(Category, related_name='products', on_delete=models.CASCADE)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
     image = CloudinaryField('image', blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add = True)
+    created_at = models.DateTimeField(auto_now_add=True)
     is_weekly_top = models.BooleanField(default=False, help_text="Mark as Weekly Top Selling product")
+    discount_percentage = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Discount % for this product (0 = no discount). Active only during linked offer banner period."
+    )
+    offer_banner = models.ForeignKey(
+        'OfferBanner',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='products',
+        help_text="Link to the offer banner whose show_from/event_end controls when this discount is visible."
+    )
 
     class Meta:
         indexes = [

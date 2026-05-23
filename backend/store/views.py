@@ -168,6 +168,19 @@ def get_new_arrivals(request):
     serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
 
+@api_view(['GET'])
+def get_sale_products(request):
+    """Returns products that currently have an active discount."""
+    from django.utils import timezone
+    now = timezone.now()
+    products = Product.objects.select_related('category', 'offer_banner').filter(
+        discount_percentage__gt=0,
+        offer_banner__is_active=True,
+        offer_banner__show_from__lte=now,
+        offer_banner__event_end__gte=now,
+    ).order_by('-discount_percentage', '-created_at')
+    serializer = ProductSerializer(products, many=True)
+    return Response(serializer.data)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
