@@ -176,7 +176,7 @@ def get_sale_products(request):
     products = Product.objects.select_related('category', 'offer_banner').filter(
         discount_percentage__gt=0,
         offer_banner__is_active=True,
-        offer_banner__show_from__lte=now,
+        offer_banner__event_start__lte=now,
         offer_banner__event_end__gte=now,
     ).order_by('-discount_percentage', '-created_at')
     serializer = ProductSerializer(products, many=True)

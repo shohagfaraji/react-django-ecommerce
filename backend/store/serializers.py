@@ -23,13 +23,13 @@ class ProductSerializer(serializers.ModelSerializer):
         return None
 
     def get_active_discount(self, obj):
-        """Returns discount_percentage only if the linked offer banner is currently active."""
+        """Returns discount_percentage only during the actual offer window (event_start → event_end)."""
         if obj.discount_percentage <= 0 or not obj.offer_banner:
             return 0
         from django.utils import timezone
         now = timezone.now()
         b = obj.offer_banner
-        if b.is_active and b.show_from <= now <= b.event_end:
+        if b.is_active and b.event_start <= now <= b.event_end:
             return obj.discount_percentage
         return 0
 
@@ -46,6 +46,8 @@ class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
     product_price = serializers.DecimalField(source='product.price', max_digits=10, decimal_places=2, read_only=True)
     product_image = serializers.SerializerMethodField()
+    product_active_discount = serializers.SerializerMethodField()
+    product_discounted_price = serializers.SerializerMethodField()
 
     class Meta:
         model = CartItem
@@ -54,6 +56,26 @@ class CartItemSerializer(serializers.ModelSerializer):
     def get_product_image(self, obj):
         if obj.product.image:
             return obj.product.image.url
+        return None
+
+    def get_product_active_discount(self, obj):
+        """Reuse the same offer window logic: active only between event_start and event_end."""
+        p = obj.product
+        if p.discount_percentage <= 0 or not p.offer_banner:
+            return 0
+        from django.utils import timezone
+        now = timezone.now()
+        b = p.offer_banner
+        if b.is_active and b.event_start <= now <= b.event_end:
+            return p.discount_percentage
+        return 0
+
+    def get_product_discounted_price(self, obj):
+        discount = self.get_product_active_discount(obj)
+        if discount > 0:
+            from decimal import Decimal, ROUND_HALF_UP
+            sale = obj.product.price * (1 - Decimal(discount) / 100)
+            return str(sale.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         return None
 
 class CartSerializer(serializers.ModelSerializer):
