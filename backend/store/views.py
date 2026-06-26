@@ -7,6 +7,8 @@ from .serializers import ProductSerializer, CategorySerializer, CartSerializer, 
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q
+import os
+from django.contrib.auth.models import User
 
 @api_view(['GET'])
 def get_products(request):
@@ -207,3 +209,22 @@ def get_active_offer_banner(request):
 
     serializer = OfferBannerSerializer(banner)
     return Response(serializer.data)
+
+
+@api_view(['POST'])
+def bootstrap_superuser(request):
+    if request.data.get('setup_key') != os.getenv('SUPERUSER_SETUP_KEY'):
+        return Response({'error': 'unauthorized'}, status=403)
+
+    username = request.data.get('username')
+    email = request.data.get('email', '')
+    password = request.data.get('password')
+
+    if not username or not password:
+        return Response({'error': 'username and password required'}, status=400)
+
+    if User.objects.filter(is_superuser=True).exists():
+        return Response({'error': 'a superuser already exists'}, status=400)
+
+    User.objects.create_superuser(username=username, email=email, password=password)
+    return Response({'status': 'superuser created'})
