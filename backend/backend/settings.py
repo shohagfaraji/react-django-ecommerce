@@ -24,8 +24,10 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    "react-django-ecommerce-1-kxh3.onrender.com"
+    "https://react-django-ecommerce-3cfu.onrender.com",
+    os.getenv("RENDER_EXTERNAL_HOSTNAME", ""),
 ]
+ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -127,7 +129,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://react-django-ecommerce-1-kxh3.onrender.com",
+    "https://react-django-ecommerce-3cfu.onrender.com",
 ]
 
 MEDIA_URL = '/media/'
