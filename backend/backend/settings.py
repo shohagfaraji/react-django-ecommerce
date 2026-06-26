@@ -24,7 +24,7 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    "https://react-django-ecommerce-3cfu.onrender.com",
+    "react-django-ecommerce-3cfu.onrender.com",
     os.getenv("RENDER_EXTERNAL_HOSTNAME", ""),
 ]
 ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]
@@ -79,6 +79,7 @@ if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
     }
+    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
 else:
     DATABASES = {
         'default': {
