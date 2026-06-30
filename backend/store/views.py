@@ -66,7 +66,15 @@ def get_cart(request):
 @permission_classes([IsAuthenticated])
 def add_to_cart(request):
     product_id = request.data.get('product_id')
-    product = Product.objects.get(id=product_id)
+
+    if not product_id:
+        return Response({'error': 'product_id is required'}, status=400)
+
+    try:
+        product = Product.objects.get(id=product_id)
+    except (Product.DoesNotExist, ValueError, TypeError):
+        return Response({'error': 'Product not found'}, status=404)
+
     cart, created = Cart.objects.get_or_create(user=request.user)
     item, created = CartItem.objects.get_or_create(cart=cart, product=product)
 
@@ -90,19 +98,22 @@ def update_cart_quantity(request):
         return Response({"error": "Cart not found"}, status=404)
 
     try:
-        item = CartItem.objects.get(cart=cart, id=item_id)
         quantity = int(quantity)
+    except (ValueError, TypeError):
+        return Response({"error": "quantity must be a valid number"}, status=400)
 
-        if quantity < 1:
-            item.delete()
-            return Response({"message": "Item removed"})
-
-        item.quantity = quantity
-        item.save()
-        return Response(CartItemSerializer(item).data)
-
-    except CartItem.DoesNotExist:
+    try:
+        item = CartItem.objects.get(cart=cart, id=item_id)
+    except (CartItem.DoesNotExist, ValueError, TypeError):
         return Response({"error": "Item not found"}, status=404)
+
+    if quantity < 1:
+        item.delete()
+        return Response({"message": "Item removed"})
+
+    item.quantity = quantity
+    item.save()
+    return Response(CartItemSerializer(item).data)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
