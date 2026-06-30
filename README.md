@@ -1,143 +1,222 @@
-# React + Django E-Commerce Application
+# 🛍️ VoltEdge — Full-Stack E-Commerce Platform
 
-A full-stack e-commerce web application built with Django REST Framework for the backend and React for the frontend.
-It supports user authentication, product management, cart, checkout, and order creation.
+VoltEdge is a full-stack e-commerce web app with a React frontend and a Django REST Framework backend. It includes JWT-based authentication, a time-windowed seasonal discount engine, product comparison, and a real-time cart — built and deployed end-to-end (Netlify + Render).
+
+**Live demo:** https://evoltedge.netlify.app  
+**Backend API:** https://react-django-ecommerce-3cfu.onrender.com
+
+> **Note:** The project uses Supabase's free-tier PostgreSQL database. If the database is paused or expires due to free-tier limitations (In rare cases), some API requests may fail and the application may display messages such as **"Failed to fetch products."**
 
 ---
 
-## Tech Stack
+## ✨ Features
 
-Backend:
+- **Authentication** — JWT-based signup/login with access + refresh tokens (SimpleJWT), protected checkout route
+- **Product catalog** — category filtering, full-text search across name/description/category, new arrivals feed
+- **Seasonal discount engine** — admin-configurable offer banners (Eid, Winter, Summer, Monsoon, Puja, Default themes) with a live countdown timer; discounts are only active during the exact `event_start` → `event_end` window, computed server-side
+- **Weekly top sellers** — featured **Weekly Top Selling Products** section on the home page, driven by backend flags/filters
+- **Product comparison** — compare up to 2 products side by side
+- **Cart** — add/update/remove items with optimistic UI updates (cart count updates instantly, then syncs with the server)
+- **Checkout** — address/phone form, order creation wrapped in a DB transaction (cart is only cleared if the order is successfully created)
+- **Responsive UI** — collapsible mobile sidebar, hide-on-scroll navbar, skeleton loading states
 
-- Python
-- Django
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+
+- React 19
+- Vite
+- React Router 7
+- Tailwind CSS 4
+- React Icons
+
+### Backend
+
+- Django 5.1
 - Django REST Framework
-- JWT Authentication (SimpleJWT)
-- PostgreSQL / SQLite
-- Django CORS Headers
+- Simple JWT
+- PostgreSQL
+- Cloudinary
+- WhiteNoise
 
-Frontend:
+### Deployment
 
-- React
-- React Router
-- Axios
-- Context API
-- HTML, CSS, JavaScript
+- Netlify (Frontend)
+- Render (Backend API)
+- Supabase (PostgreSQL Database)
+- Cloudinary (Image Storage)
 
 ---
 
-## Project Structure
+## 🏗️ Architecture
+
+The frontend and backend are fully decoupled. React communicates with Django exclusively through a REST API secured with JWT Bearer tokens.
+
+- Short-lived Access Token (60 minutes)
+- Refresh Token (1 day)
+- Images stored on Cloudinary
+- Discount calculations handled entirely on the backend
+- Frontend simply renders the prices returned by the API
 
 ```text
-react-django-ecommerce/
-├── backend/
-│   ├── backend/
-│   ├── store/
-│   ├── media/
-│   ├── manage.py
-│   ├── requirements.txt
-│   └── .env
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   ├── package.json
-│   └── package-lock.json
-└── README.md
+React (Vite)
+      │
+ REST / JSON
+      ▼
+Django REST Framework
+      │
+      ├────────► Supabase PostgreSQL
+      │
+      └────────► Cloudinary (Product Images)
 ```
 
 ---
 
-## Features
+# 🚀 Getting Started Locally
 
-- User registration and login using JWT authentication
-- Product listing and product details
-- Add to cart and remove from cart
-- Checkout and order creation
-- Payment method selection (Cash on Delivery)
-- Admin product and order management
-- Responsive UI
+## Prerequisites
 
----
-
-## Backend Setup (Django)
-
-1. Navigate to backend folder  
-   cd backend
-
-2. Create virtual environment  
-   python -m venv venv
-
-3. Activate virtual environment  
-   Windows: venv\Scripts\activate  
-   macOS/Linux: source venv/bin/activate
-
-4. Install dependencies  
-   pip install -r requirements.txt
-
-5. Run migrations  
-   python manage.py migrate
-
-6. Create superuser  
-   python manage.py createsuperuser
-
-7. Run backend server  
-   python manage.py runserver
-
-Backend runs at: http://127.0.0.1:8000/
+- Python 3.12
+- Node.js 18+
+- PostgreSQL
+- Cloudinary account
 
 ---
 
-## Frontend Setup (React)
+## Backend Setup
 
-1. Navigate to frontend folder  
-   cd frontend
+```bash
+cd backend
 
-2. Install dependencies  
-   npm install
+python -m venv venv
 
-3. Start development server  
-   npm start
+# Windows
+venv\Scripts\activate
 
-Frontend runs at: http://localhost:3000/
+# macOS/Linux
+source venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+Create a `.env` file inside the backend folder.
+
+```
+backend/.env
+```
+
+Example:
+
+```env
+SECRET_KEY=your_secret_key
+
+DEBUG=True
+
+DB_NAME=your_database
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_HOST=localhost
+DB_PORT=5432
+
+CLOUDINARY_CLOUD_NAME=xxxxxxxx
+CLOUDINARY_API_KEY=xxxxxxxx
+CLOUDINARY_API_SECRET=xxxxxxxx
+```
+
+Run migrations:
+
+```bash
+python manage.py migrate
+```
+
+Start the server:
+
+```bash
+python manage.py runserver
+```
+
+Backend runs on:
+
+```
+http://127.0.0.1:8000/api/
+```
 
 ---
 
-## Environment Variables
+## Frontend Setup
 
-Create a .env file inside backend folder:
+```bash
+cd frontend
 
-SECRET_KEY = your_secret_key  
-DEBUG = True  
-DB_NAME = your_db_name  
-DB_USER = postgres  
-DB_PASSWORD = your_db_password  
-DB_HOST = localhost  
-DB_PORT = 5432
+npm install
+```
 
----
+Create:
 
-## Authentication
+```
+frontend/.env
+```
 
-- JWT based authentication using djangorestframework-simplejwt
-- Access and refresh token system
-- Tokens sent via Authorization headers
+Add:
 
----
+```env
+VITE_DJANGO_BASE_URL=http://127.0.0.1:8000
+```
 
-## Notes
+Run:
 
-- Use virtual environment for backend
-- Do not commit venv, node_modules, or .env files
-- This project is suitable for learning and portfolio use
+```bash
+npm run dev
+```
 
----
+Frontend runs on:
 
-## Author
-
-[Shohag Faraji](https://shohagfaraji.netlify.app/)
+```
+http://localhost:5173
+```
 
 ---
 
-## License
+# 📡 API Reference
 
-This project is for educational and portfolio purposes.
+| Method | Endpoint                            | Auth | Description                                |
+| ------ | ----------------------------------- | ---- | ------------------------------------------ |
+| POST   | `/api/register/`                    | ❌   | Create account                             |
+| POST   | `/api/token/`                       | ❌   | Login                                      |
+| POST   | `/api/token/refresh/`               | ❌   | Refresh JWT                                |
+| GET    | `/api/products/`                    | ❌   | Product list (`?category=&search=&limit=`) |
+| GET    | `/api/product/<id>/`                | ❌   | Product details                            |
+| GET    | `/api/products/new-arrivals/`       | ❌   | Latest products                            |
+| GET    | `/api/products/weekly-top-selling/` | ❌   | Weekly top sellers                         |
+| GET    | `/api/products/sale/`               | ❌   | Products currently on sale                 |
+| GET    | `/api/categories/`                  | ❌   | Categories                                 |
+| GET    | `/api/offer-banner/`                | ❌   | Active seasonal offer                      |
+| GET    | `/api/cart/`                        | ✅   | User cart                                  |
+| POST   | `/api/cart/add/`                    | ✅   | Add to cart                                |
+| POST   | `/api/cart/update/`                 | ✅   | Update quantity                            |
+| POST   | `/api/cart/remove/`                 | ✅   | Remove item                                |
+| POST   | `/api/orders/create/`               | ✅   | Place order                                |
+
+---
+
+# 🔭 Future Improvements
+
+- Add automated Django TestCases
+- Add React component testing
+- Automatic JWT access-token refresh
+- DRF pagination instead of `?limit=`
+- Better backend validation for invalid product/cart IDs
+- Wishlist functionality
+- User profile page
+- Order history
+- Email confirmation after checkout
+- Product reviews & ratings
+- Admin analytics dashboard
+
+---
+
+# 📄 License
+
+This project was built for portfolio and learning purposes.
