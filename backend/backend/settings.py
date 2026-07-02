@@ -125,7 +125,7 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = [
-    "https://evoltedge.netlify.app",
+    "https://voltedgeshop.netlify.app",
     "http://localhost:5173",
 ]
 
