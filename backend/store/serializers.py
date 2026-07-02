@@ -38,7 +38,7 @@ class ProductSerializer(serializers.ModelSerializer):
         discount = self.get_active_discount(obj)
         if discount > 0:
             from decimal import Decimal, ROUND_HALF_UP
-            sale = obj.price * (1 - Decimal(discount) / 100)
+            sale = Decimal(str(obj.price)) * (1 - Decimal(discount) / 100)
             return str(sale.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         return None
 
@@ -74,7 +74,7 @@ class CartItemSerializer(serializers.ModelSerializer):
         discount = self.get_product_active_discount(obj)
         if discount > 0:
             from decimal import Decimal, ROUND_HALF_UP
-            sale = obj.product.price * (1 - Decimal(discount) / 100)
+            sale = Decimal(str(obj.product.price)) * (1 - Decimal(discount) / 100)
             return str(sale.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         return None
 
