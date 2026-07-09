@@ -2,17 +2,27 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
-from .models import Product, Category, Cart, CartItem, Order, OrderItem, OfferBanner
-from .serializers import ProductSerializer, CategorySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, OfferBannerSerializer
+from .models import Product, Category, Cart, CartItem, Order, OrderItem, HeroBanner
+from .serializers import ProductSerializer, CategorySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, HeroBannerSerializer
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q
+from django.core.cache import cache
 import os
 from django.contrib.auth.models import User
+
+
+def cached_api_data(key, factory, timeout=300):
+    data = cache.get(key)
+    if data is None:
+        data = factory()
+        cache.set(key, data, timeout)
+    return data
 
 @api_view(['GET'])
 def get_products(request):
     category_slug = request.GET.get('category')
+    section = request.GET.get('section')
     search_query = request.GET.get('search')
     limit = request.GET.get('limit')  # NEW: optional limit param
 
@@ -20,13 +30,22 @@ def get_products(request):
     products = Product.objects.select_related('category').order_by('-created_at')
 
     if category_slug:
-        products = products.filter(category__slug__iexact=category_slug)
+        category = Category.objects.filter(slug__iexact=category_slug).first()
+        if category:
+            child_ids = list(category.children.values_list('id', flat=True))
+            products = products.filter(Q(category=category) | Q(category_id__in=child_ids))
+        else:
+            products = products.none()
+
+    if section:
+        products = products.filter(category__section__iexact=section)
 
     if search_query:
         products = products.filter(
             Q(name__icontains=search_query) |
             Q(description__icontains=search_query) |
-            Q(category__name__icontains=search_query)
+            Q(category__name__icontains=search_query) |
+            Q(category__parent__name__icontains=search_query)
         )
 
     if limit:
@@ -35,13 +54,18 @@ def get_products(request):
         except (ValueError, TypeError):
             pass
 
-    serializer = ProductSerializer(products, many=True)
-    return Response(serializer.data)
+    cache_key = f"products:{request.GET.urlencode()}"
+    data = cached_api_data(
+        cache_key,
+        lambda: ProductSerializer(products, many=True, context={'request': request}).data,
+        timeout=180,
+    )
+    return Response(data)
 
 @api_view(['GET'])
 def get_product(request, pk):
     try:
-        product = Product.objects.select_related('category').get(id=pk)
+        product = Product.objects.select_related('category', 'category__parent').get(id=pk)
         serializer = ProductSerializer(product, context={'request': request})
         return Response(serializer.data)
     except Product.DoesNotExist:
@@ -49,9 +73,15 @@ def get_product(request, pk):
 
 @api_view(['GET'])
 def get_categories(request):
-    categories = Category.objects.all()
-    serializer = CategorySerializer(categories, many=True)
-    return Response(serializer.data)
+    data = cached_api_data(
+        "categories:all",
+        lambda: CategorySerializer(
+            Category.objects.filter(parent__isnull=True, is_active=True).prefetch_related('children').order_by('sort_order', 'name'),
+            many=True,
+        ).data,
+        timeout=600,
+    )
+    return Response(data)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -59,7 +89,7 @@ def get_cart(request):
     cart, created = Cart.objects.get_or_create(user=request.user)
     # select_related + prefetch_related avoids N+1 on items -> product
     cart_with_items = Cart.objects.prefetch_related('items__product').get(id=cart.id)
-    serializer = CartSerializer(cart_with_items)
+    serializer = CartSerializer(cart_with_items, context={'request': request})
     return Response(serializer.data)
 
 @api_view(['POST'])
@@ -113,7 +143,7 @@ def update_cart_quantity(request):
 
     item.quantity = quantity
     item.save()
-    return Response(CartItemSerializer(item).data)
+    return Response(CartItemSerializer(item, context={'request': request}).data)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -170,30 +200,114 @@ def create_order(request):
 def get_weekly_top_selling(request):
     """Returns products marked as Weekly Top Selling by admin."""
     products = Product.objects.filter(is_weekly_top=True).select_related('category').order_by('-created_at')
-    serializer = ProductSerializer(products, many=True)
-    return Response(serializer.data)
+    data = cached_api_data(
+        "products:weekly-top-selling",
+        lambda: ProductSerializer(products, many=True, context={'request': request}).data,
+        timeout=300,
+    )
+    return Response(data)
 
 
 @api_view(['GET'])
 def get_new_arrivals(request):
     """Returns all products ordered by newest first."""
     products = Product.objects.select_related('category').order_by('-created_at')
-    serializer = ProductSerializer(products, many=True)
-    return Response(serializer.data)
+    data = cached_api_data(
+        "products:new-arrivals",
+        lambda: ProductSerializer(products, many=True, context={'request': request}).data,
+        timeout=180,
+    )
+    return Response(data)
 
 @api_view(['GET'])
 def get_sale_products(request):
-    """Returns products that currently have an active discount."""
-    from django.utils import timezone
-    now = timezone.now()
-    products = Product.objects.select_related('category', 'offer_banner').filter(
+    """Returns products with a product-level discount."""
+    products = Product.objects.select_related('category').filter(
         discount_percentage__gt=0,
-        offer_banner__is_active=True,
-        offer_banner__event_start__lte=now,
-        offer_banner__event_end__gte=now,
     ).order_by('-discount_percentage', '-created_at')
-    serializer = ProductSerializer(products, many=True)
-    return Response(serializer.data)
+    data = cached_api_data(
+        "products:sale",
+        lambda: ProductSerializer(products, many=True, context={'request': request}).data,
+        timeout=120,
+    )
+    return Response(data)
+
+@api_view(['GET'])
+def get_hero_banners(request):
+    now = timezone.now()
+    banners = HeroBanner.objects.select_related('category', 'product').filter(
+        is_active=True,
+        show_on_home=True,
+    ).filter(
+        Q(starts_at__isnull=True) | Q(starts_at__lte=now),
+        Q(ends_at__isnull=True) | Q(ends_at__gte=now),
+    ).order_by('sort_order', '-created_at')
+
+    data = cached_api_data(
+        "hero-banners:active",
+        lambda: HeroBannerSerializer(banners, many=True, context={'request': request}).data,
+        timeout=120,
+    )
+    return Response(data)
+
+@api_view(['GET'])
+def get_homepage(request):
+    now = timezone.now()
+
+    def build_homepage_data():
+        hero_banners = HeroBanner.objects.select_related('category', 'product').filter(
+            is_active=True,
+            show_on_home=True,
+        ).filter(
+            Q(starts_at__isnull=True) | Q(starts_at__lte=now),
+            Q(ends_at__isnull=True) | Q(ends_at__gte=now),
+        ).order_by('sort_order', '-created_at')[:8]
+
+        deal_products = Product.objects.select_related('category', 'category__parent').filter(
+            discount_percentage__gt=0,
+        ).order_by('-discount_percentage', '-created_at')[:10]
+
+        hot_products = Product.objects.select_related('category', 'category__parent').filter(
+            Q(is_hot=True) | Q(is_weekly_top=True)
+        ).order_by('-is_hot', '-is_weekly_top', '-created_at')[:10]
+
+        featured_products = Product.objects.select_related('category', 'category__parent').filter(
+            is_featured=True
+        ).order_by('-created_at')[:12]
+
+        featured_categories = Category.objects.filter(
+            parent__isnull=True,
+            is_active=True,
+            is_featured=True,
+        ).prefetch_related('children').order_by('sort_order', 'name')[:6]
+
+        category_sections = []
+        for category in featured_categories:
+            child_ids = list(category.children.filter(is_active=True).values_list('id', flat=True))
+            products = Product.objects.select_related('category', 'category__parent').filter(
+                Q(category=category) | Q(category_id__in=child_ids)
+            ).filter(is_featured=True).order_by('-created_at')[:8]
+
+            if not products:
+                products = Product.objects.select_related('category', 'category__parent').filter(
+                    Q(category=category) | Q(category_id__in=child_ids)
+                ).order_by('-created_at')[:8]
+
+            category_sections.append({
+                'category': CategorySerializer(category, context={'request': request}).data,
+                'products': ProductSerializer(products, many=True, context={'request': request}).data,
+            })
+
+        return {
+            'hero_banners': HeroBannerSerializer(hero_banners, many=True, context={'request': request}).data,
+            'offer_products': ProductSerializer(deal_products, many=True, context={'request': request}).data,
+            'hot_products': ProductSerializer(hot_products, many=True, context={'request': request}).data,
+            'featured_products': ProductSerializer(featured_products, many=True, context={'request': request}).data,
+            'category_sections': category_sections,
+        }
+
+    data = cached_api_data("homepage:v1", build_homepage_data, timeout=120)
+    return Response(data)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -203,23 +317,6 @@ def register(request):
         user = serializer.save()
         return Response({"message": "User created successfully!", "user": UserSerializer(user).data}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['GET'])
-def get_active_offer_banner(request):
-    """Returns the single most relevant active banner to show right now."""
-    now = timezone.now()
-    banner = OfferBanner.objects.filter(
-        is_active=True,
-        show_from__lte=now,
-        event_end__gte=now
-    ).first()
-
-    if not banner:
-        return Response(None)
-
-    serializer = OfferBannerSerializer(banner)
-    return Response(serializer.data)
 
 
 @api_view(['POST'])

@@ -13,12 +13,12 @@ urlpatterns = [
     path('products/sale/', views.get_sale_products),
     path('product/<int:pk>/', views.get_product),
     path('categories/', views.get_categories),
+    path('hero-banners/', views.get_hero_banners),
+    path('homepage/', views.get_homepage),
     path('cart/', views.get_cart),
     path('cart/add/', views.add_to_cart),
     path('cart/remove/', views.remove_from_cart),
     path('cart/update/', views.update_cart_quantity),
     path('orders/create/', views.create_order),
-    path('offer-banner/', views.get_active_offer_banner),
-    
     path('bootstrap-superuser/', views.bootstrap_superuser),
 ]

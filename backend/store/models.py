@@ -3,10 +3,45 @@ from django.contrib.auth.models import User
 from cloudinary.models import CloudinaryField
 
 class Category(models.Model):
-    name = models.CharField(max_length = 100, unique = True)
+    SECTION_CHOICES = [
+        ('clothing', 'Clothing'),
+        ('electronics', 'Electronics'),
+        ('toys', 'Toys'),
+        ('garden', 'Garden'),
+        ('home', 'Home & Living'),
+        ('beauty', 'Beauty & Personal Care'),
+        ('sports', 'Sports & Outdoors'),
+        ('other', 'Other'),
+    ]
+
+    name = models.CharField(max_length = 100)
     slug = models.SlugField(unique = True)
+    parent = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        related_name='children',
+        on_delete=models.CASCADE,
+    )
+    section = models.CharField(max_length=30, choices=SECTION_CHOICES, default='other')
+    description = models.CharField(max_length=240, blank=True)
+    image = CloudinaryField('image', blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    is_featured = models.BooleanField(default=False, help_text="Show this category on the home page.")
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name_plural = 'categories'
+        ordering = ['sort_order', 'name']
+        indexes = [
+            models.Index(fields=['parent']),
+            models.Index(fields=['section']),
+            models.Index(fields=['is_featured']),
+        ]
 
     def __str__(self):
+        if self.parent:
+            return f"{self.parent.name} / {self.name}"
         return self.name
 
 class Product(models.Model):
@@ -17,23 +52,19 @@ class Product(models.Model):
     image = CloudinaryField('image', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_weekly_top = models.BooleanField(default=False, help_text="Mark as Weekly Top Selling product")
+    is_hot = models.BooleanField(default=False, help_text="Show as hot/most selling product on the home page")
+    is_featured = models.BooleanField(default=False, help_text="Admin-selected product for category shelves")
     discount_percentage = models.PositiveSmallIntegerField(
         default=0,
-        help_text="Discount % for this product (0 = no discount). Active only during linked offer banner period."
-    )
-    offer_banner = models.ForeignKey(
-        'OfferBanner',
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='products',
-        help_text="Link to the offer banner whose show_from/event_end controls when this discount is visible."
+        help_text="Discount % for this product (0 = no discount)."
     )
 
     class Meta:
         indexes = [
             models.Index(fields=['category']),
             models.Index(fields=['-created_at']),
+            models.Index(fields=['is_hot']),
+            models.Index(fields=['is_featured']),
         ]
 
     def __str__(self):
@@ -86,31 +117,40 @@ class CartItem(models.Model):
     
     def __str__(self):
         return f"{self.product.name} x{self.quantity}"
-    
-class OfferBanner(models.Model):
-    THEME_CHOICES = [
-        ('eid_ul_fitr', 'Eid ul Fitr'),
-        ('eid_ul_adha', 'Eid ul Adha'),
-        ('winter', 'Winter Sale'),
-        ('summer', 'Summer Sale'),
-        ('monsoon', 'Monsoon Sale'),
-        ('puja', 'Puja Season'),
-        ('default', 'Default'),
-    ]
-
+class HeroBanner(models.Model):
     title = models.CharField(max_length=200)
-    tagline = models.CharField(max_length=300, blank=True)
-    max_discount = models.PositiveIntegerField(help_text="Max discount % to show e.g. 50")
-    theme = models.CharField(max_length=20, choices=THEME_CHOICES, default='default')
-
-    show_from = models.DateTimeField(help_text="When to start showing this banner on site")
-    event_start = models.DateTimeField(help_text="Offer starts: countdown shows time left until this")
-    event_end = models.DateTimeField(help_text="Offer ends: countdown shows time left to end after start")
-
-    is_active = models.BooleanField(default=True, help_text="Master switch to enable/disable this banner")
+    subtitle = models.CharField(max_length=300, blank=True)
+    image = CloudinaryField('image')
+    category = models.ForeignKey(
+        Category,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='hero_banners',
+        help_text="Optional category to open when this banner is clicked.",
+    )
+    product = models.ForeignKey(
+        Product,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='hero_banners',
+        help_text="Optional product to open when this banner is clicked.",
+    )
+    button_text = models.CharField(max_length=60, default='Shop now')
+    is_active = models.BooleanField(default=True)
+    show_on_home = models.BooleanField(default=True, help_text="Only selected banners appear in the home slider.")
+    starts_at = models.DateTimeField(null=True, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-show_from']
+        ordering = ['sort_order', '-created_at']
+        indexes = [
+            models.Index(fields=['is_active', 'show_on_home']),
+            models.Index(fields=['sort_order']),
+        ]
 
     def __str__(self):
         return self.title

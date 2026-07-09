@@ -1,97 +1,170 @@
 import "./Sidebar.css";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
+    FaBaby,
+    FaChevronRight,
+    FaLeaf,
     FaMobileAlt,
-    FaLaptop,
-    FaTabletAlt,
-    FaDesktop,
-    FaPrint,
-    FaCamera,
-    FaTv,
-    FaVolumeUp,
-    FaHeadphones,
-    FaLightbulb,
-    FaPlug,
-    FaFan,
-    FaBatteryFull,
-    FaKeyboard,
-    FaMouse,
-    FaHdd,
-    FaWifi,
-    FaNetworkWired,
-    FaClock,
-    FaGamepad,
-    FaVideo,
-    FaDoorOpen,
-    FaBolt,
-    FaMicrochip,
-    FaBroadcastTower,
-    FaServer,
-    FaTools,
-    FaSdCard,
+    FaRunning,
+    FaShoppingBag,
+    FaSpa,
     FaTimes,
+    FaTshirt,
 } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
 
-const categories = [
-    { icon: <FaMobileAlt />, name: "Mobile Phones" },
-    { icon: <FaDesktop />, name: "Desktop Computers" },
-    { icon: <FaLaptop />, name: "Laptops" },
-    { icon: <FaTabletAlt />, name: "Tablets" },
-    { icon: <FaHeadphones />, name: "Headphones" },
-    { icon: <FaKeyboard />, name: "Keyboard" },
-    { icon: <FaMouse />, name: "Mouse" },
-    { icon: <FaHdd />, name: "Hard Drives / SSD" },
-    { icon: <FaGamepad />, name: "Gaming Consoles" },
-    { icon: <FaWifi />, name: "WiFi Routers" },
-    { icon: <FaPrint />, name: "Printers & Scanners" },
-    { icon: <FaClock />, name: "Smart Watches" },
-    { icon: <FaCamera />, name: "Cameras" },
-    { icon: <FaTv />, name: "Smart TVs" },
-    { icon: <FaBolt />, name: "Wires & Cables" },
-    { icon: <FaBatteryFull />, name: "Power Banks" },
-    { icon: <FaBolt />, name: "Chargers & Adapters" },
-    { icon: <FaServer />, name: "UPS / Inverters" },
-    { icon: <FaSdCard />, name: "USB Drives" },
-    { icon: <FaNetworkWired />, name: "Network Switches" },
-    { icon: <FaBroadcastTower />, name: "LAN Cables" },
-    { icon: <FaVideo />, name: "Security Cameras" },
+const sectionIcons = {
+    clothing: <FaTshirt />,
+    electronics: <FaMobileAlt />,
+    toys: <FaBaby />,
+    garden: <FaLeaf />,
+    home: <FaShoppingBag />,
+    beauty: <FaSpa />,
+    sports: <FaRunning />,
+    other: <FaShoppingBag />,
+};
+
+const fallbackCategories = [
+    {
+        name: "Clothing",
+        slug: "clothing",
+        section: "clothing",
+        description: "Fashion for men, women, and kids",
+        children: [
+            { name: "Men", slug: "mens-clothing" },
+            { name: "Women", slug: "womens-clothing" },
+            { name: "Kids", slug: "kids-clothing" },
+            { name: "Shoes", slug: "shoes" },
+        ],
+    },
+    {
+        name: "Electronics",
+        slug: "electronics",
+        section: "electronics",
+        description: "Phones, computers, gaming, storage, and accessories",
+        children: [
+            { name: "Mobile Phones", slug: "mobile-phones" },
+            { name: "Laptops", slug: "laptops" },
+            { name: "Headphones", slug: "headphones" },
+            { name: "Smart Watches", slug: "smart-watches" },
+        ],
+    },
+    {
+        name: "Toys & Kids",
+        slug: "toys",
+        section: "toys",
+        description: "Baby items, learning toys, outdoor play, and gifts",
+        children: [
+            { name: "Baby Toys", slug: "baby-toys" },
+            { name: "Learning Toys", slug: "learning-toys" },
+            { name: "Outdoor Play", slug: "outdoor-play" },
+        ],
+    },
+    {
+        name: "Garden & Plants",
+        slug: "garden",
+        section: "garden",
+        description: "Indoor plants, planters, soil, and garden care",
+        children: [
+            { name: "Indoor Plants", slug: "indoor-plants" },
+            { name: "Flowering Plants", slug: "flowering-plants" },
+            { name: "Plant Pots", slug: "plant-pots" },
+        ],
+    },
 ];
 
 function Sidebar({ isOpen, onClose }) {
+    const [categories, setCategories] = useState(fallbackCategories);
     const navigate = useNavigate();
-    const toSlug = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
-    const handleCategoryClick = (name) => {
-        navigate(`/products?category=${toSlug(name)}`);
-        onClose(); // close sidebar on mobile after picking a category
+    useEffect(() => {
+        const controller = new AbortController();
+
+        fetch(`${BASEURL}/api/categories/`, { signal: controller.signal })
+            .then((res) => res.json())
+            .then((data) => {
+                const nextCategories = Array.isArray(data) ? data : [];
+                setCategories(
+                    nextCategories.length ? nextCategories : fallbackCategories,
+                );
+            })
+            .catch(() => {});
+
+        return () => controller.abort();
+    }, [BASEURL]);
+
+    const openCategory = (slug) => {
+        navigate(`/products?category=${slug}`);
+        onClose();
     };
 
     return (
         <>
-            {/* Backdrop — only renders in CSS on mobile */}
             {isOpen && <div className="sidebar-backdrop" onClick={onClose} />}
 
-            <div className={`sidebar ${isOpen ? "mobile-open" : ""}`}>
-                {/* Close button — mobile only */}
-                <button
-                    className="md:hidden absolute top-4 right-4 text-white"
-                    onClick={onClose}
-                    aria-label="Close menu"
-                >
-                    <FaTimes size={18} />
-                </button>
-
-                {categories.map((cat, index) => (
-                    <div
-                        key={index}
-                        className="sidebar-item"
-                        onClick={() => handleCategoryClick(cat.name)}
-                    >
-                        <span className="icon">{cat.icon}</span>
-                        <span className="text">{cat.name}</span>
+            <aside
+                className={`market-sidebar ${isOpen ? "mobile-open" : ""}`}
+                aria-label="Shop departments"
+            >
+                <div className="sidebar-head">
+                    <div>
+                        <p className="sidebar-kicker">Shop by department</p>
+                        <h2>All Categories</h2>
                     </div>
-                ))}
-            </div>
+                    <button
+                        type="button"
+                        className="sidebar-close"
+                        onClick={onClose}
+                        aria-label="Close category menu"
+                    >
+                        <FaTimes />
+                    </button>
+                </div>
+
+                <div className="department-list">
+                    {categories.map((category) => (
+                        <section className="department" key={category.slug}>
+                            <button
+                                type="button"
+                                className="department-main"
+                                onClick={() => openCategory(category.slug)}
+                            >
+                                <span className="department-icon">
+                                    {sectionIcons[category.section] ||
+                                        sectionIcons.other}
+                                </span>
+                                <span>
+                                    <strong>{category.name}</strong>
+                                    <small>{category.description}</small>
+                                </span>
+                                <FaChevronRight className="department-arrow" />
+                            </button>
+
+                            {category.children?.length > 0 && (
+                                <div className="subcategory-grid">
+                                    {category.children.map((child) => (
+                                        <button
+                                            type="button"
+                                            key={child.slug}
+                                            onClick={() =>
+                                                openCategory(child.slug)
+                                            }
+                                        >
+                                            {child.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                    ))}
+                </div>
+
+                <Link to="/sale" className="sidebar-promo" onClick={onClose}>
+                    <span>Live offers</span>
+                    <strong>Browse active discounts</strong>
+                </Link>
+            </aside>
         </>
     );
 }

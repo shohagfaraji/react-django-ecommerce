@@ -1,7 +1,14 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useCart } from "../context/CartContext.jsx";
-import { FaSearch, FaShoppingCart, FaUser, FaBars } from "react-icons/fa";
+import {
+    FaBars,
+    FaChevronDown,
+    FaSearch,
+    FaShoppingCart,
+    FaStore,
+    FaUser,
+} from "react-icons/fa";
 import { clearTokens, getAccessToken } from "../utils/auth.js";
 
 function Navbar({ onMenuToggle }) {
@@ -15,7 +22,7 @@ function Navbar({ onMenuToggle }) {
         let lastScrollY = window.scrollY;
         const handleScroll = () => {
             const currentScrollY = window.scrollY;
-            if (currentScrollY > lastScrollY && currentScrollY > 70) {
+            if (currentScrollY > lastScrollY && currentScrollY > 80) {
                 setShowNav(false);
                 document.body.classList.add("nav-hidden");
             } else {
@@ -29,13 +36,13 @@ function Navbar({ onMenuToggle }) {
     }, []);
 
     useEffect(() => {
-        const urlSearch = searchParams.get("search");
-        setSearch(urlSearch || "");
+        setSearch(searchParams.get("search") || "");
     }, [searchParams]);
 
     const handleSearch = (e) => {
         e.preventDefault();
-        if (search.trim()) navigate(`/?search=${search}`);
+        const term = search.trim();
+        if (term) navigate(`/?search=${encodeURIComponent(term)}`);
     };
 
     const cartCount = cartItems.reduce(
@@ -54,86 +61,95 @@ function Navbar({ onMenuToggle }) {
 
     return (
         <nav
-            className={`bg-white shadow-md fixed w-full top-0 z-50 transition-transform duration-300 ${
+            className={`fixed top-0 z-50 w-full border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur transition-transform duration-300 ${
                 showNav ? "translate-y-0" : "-translate-y-full"
             }`}
         >
-            {/* ── Row 1: logo | (desktop search) | cart + user ── */}
-            <div className="flex items-center gap-3 px-4 py-3">
-                {/* Hamburger — mobile only */}
+            <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
                 <button
-                    className="md:hidden text-gray-700 flex-shrink-0"
+                    className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-700 transition hover:bg-slate-50 md:hidden"
                     onClick={onMenuToggle}
                     aria-label="Toggle menu"
+                    type="button"
                 >
-                    <FaBars size={20} />
+                    <FaBars />
                 </button>
 
-                {/* Logo */}
                 <Link
                     to="/"
-                    className="text-xl font-bold text-gray-800 whitespace-nowrap flex-shrink-0"
+                    className="flex shrink-0 items-center gap-2 text-xl font-black tracking-tight text-slate-950"
                 >
-                    🛍️VoltEdge
+                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-slate-950 text-white">
+                        <FaStore />
+                    </span>
+                    <span>VoltEdge</span>
                 </Link>
 
-                {/* Search — desktop only (hidden on mobile, shown in row 2) */}
+                <Link
+                    to="/products"
+                    className="hidden h-10 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 lg:inline-flex"
+                >
+                    Departments
+                    <FaChevronDown className="text-xs text-slate-400" />
+                </Link>
+
                 <form
                     onSubmit={handleSearch}
-                    className="hidden md:flex items-center flex-1 mx-4"
+                    className="hidden flex-1 items-center md:flex"
                 >
-                    <input
-                        type="text"
-                        placeholder="Search products..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full border border-gray-300 px-4 h-10 rounded-l-full outline-none focus:ring-2 focus:ring-gray-300"
-                    />
-                    <button
-                        type="submit"
-                        className="bg-gray-800 text-white px-4 h-10 flex items-center justify-center rounded-r-full hover:bg-gray-700"
-                    >
-                        <FaSearch size={14} />
-                    </button>
+                    <div className="flex h-11 w-full overflow-hidden rounded-md border border-slate-300 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100">
+                        <input
+                            type="text"
+                            placeholder="Search fashion, electronics, toys, plants..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="h-full min-w-0 flex-1 px-4 text-sm outline-none"
+                        />
+                        <button
+                            type="submit"
+                            className="flex h-full w-12 items-center justify-center bg-slate-950 text-white transition hover:bg-emerald-700"
+                            aria-label="Search"
+                        >
+                            <FaSearch size={14} />
+                        </button>
+                    </div>
                 </form>
 
-                {/* Right icons — always visible */}
-                <div className="ml-auto flex items-center gap-4 flex-shrink-0">
-                    {/* Cart */}
+                <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
                     <Link
                         to="/cart"
-                        className="relative text-gray-800 hover:text-gray-600 cursor-pointer"
+                        className="relative flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-800 transition hover:bg-slate-50"
+                        aria-label="Cart"
                     >
-                        <FaShoppingCart size={22} />
+                        <FaShoppingCart />
                         {cartCount > 0 && (
-                            <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
+                            <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-black text-white">
                                 {cartCount}
                             </span>
                         )}
                     </Link>
 
-                    {/* User */}
                     {!isLoggedIn ? (
                         <Link
                             to="/login"
-                            className="text-gray-800 hover:text-gray-600 font-medium border px-3 py-1 rounded-md text-sm"
+                            className="inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-black text-white transition hover:bg-emerald-700"
                         >
                             Login
                         </Link>
                     ) : (
-                        <div className="flex items-center gap-2">
-                            <FaUser
-                                className="text-gray-700 hidden sm:block"
-                                size={18}
-                            />
-                            <div className="flex flex-col leading-tight">
-                                <span className="text-sm font-medium text-gray-800 max-w-[70px] truncate">
-                                    {username?.charAt(0).toUpperCase() +
-                                        username?.slice(1)}
-                                </span>
+                        <div className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                            <FaUser className="hidden text-slate-500 sm:block" />
+                            <div className="leading-tight">
+                                <p className="max-w-[92px] truncate text-sm font-black text-slate-900">
+                                    {username
+                                        ? username.charAt(0).toUpperCase() +
+                                          username.slice(1)
+                                        : "Account"}
+                                </p>
                                 <button
                                     onClick={handleLogout}
-                                    className="text-xs text-gray-500 cursor-pointer hover:text-red-500 text-left"
+                                    className="text-xs font-bold text-slate-500 transition hover:text-rose-600"
+                                    type="button"
                                 >
                                     Logout
                                 </button>
@@ -143,19 +159,19 @@ function Navbar({ onMenuToggle }) {
                 </div>
             </div>
 
-            {/* ── Row 2: search — mobile only ── */}
-            <div className="md:hidden px-4 pb-3">
-                <form onSubmit={handleSearch} className="flex items-center">
+            <div className="px-4 pb-3 md:hidden">
+                <form onSubmit={handleSearch} className="flex h-10">
                     <input
                         type="text"
                         placeholder="Search products..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full border border-gray-300 px-4 h-10 rounded-l-full outline-none focus:ring-2 focus:ring-gray-300"
+                        className="min-w-0 flex-1 rounded-l-md border border-r-0 border-slate-300 px-4 text-sm outline-none focus:border-emerald-500"
                     />
                     <button
                         type="submit"
-                        className="bg-gray-800 text-white px-4 h-10 flex items-center justify-center cursor-pointer rounded-r-full hover:bg-gray-700"
+                        className="flex w-12 items-center justify-center rounded-r-md bg-slate-950 text-white"
+                        aria-label="Search"
                     >
                         <FaSearch size={14} />
                     </button>

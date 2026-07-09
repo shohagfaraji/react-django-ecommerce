@@ -36,3 +36,5 @@ __pycache__/
 *.pyc
 db.sqlite3
 *.log
+backend/media/
+backend/staticfiles/

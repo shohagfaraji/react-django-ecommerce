@@ -1,14 +1,105 @@
+from pathlib import Path
+from urllib.parse import urlparse
+
+from django.conf import settings
 from rest_framework import serializers
-from .models import Product, Category, Cart, CartItem, OfferBanner
+from .models import Product, Category, Cart, CartItem, HeroBanner
 from django.contrib.auth.models import User
 
+
+def optimize_cloudinary_url(url, width=900):
+    if "res.cloudinary.com" not in url or "/image/upload/" not in url:
+        return url
+
+    transformations = f"f_auto,q_auto,c_limit,w_{width}"
+    if f"/image/upload/{transformations}/" in url:
+        return url
+    return url.replace("/image/upload/", f"/image/upload/{transformations}/", 1)
+
+
+def resolve_image_url(image, request=None, width=900):
+    if not image:
+        return None
+
+    image_name = str(image)
+    if image_name.startswith(("http://", "https://")):
+        image_url = image_name.replace("http://res.cloudinary.com/", "https://res.cloudinary.com/")
+        return optimize_cloudinary_url(image_url, width)
+
+    try:
+        image_url = image.url.replace("http://res.cloudinary.com/", "https://res.cloudinary.com/")
+    except Exception:
+        image_url = None
+
+    if settings.DEBUG:
+        local_candidates = [
+            image_name,
+            image_name.removeprefix("image/upload/"),
+        ]
+
+        if image_url:
+            suffix = Path(urlparse(image_url).path).suffix
+            if suffix and not Path(image_name).suffix:
+                local_candidates.extend(
+                    [
+                        f"{image_name}{suffix}",
+                        f"{image_name.removeprefix('image/upload/')}{suffix}",
+                    ]
+                )
+
+        for local_name in dict.fromkeys(local_candidates):
+            local_path = Path(settings.MEDIA_ROOT) / local_name
+            if local_path.exists():
+                media_url = f"{settings.MEDIA_URL}{local_name}".replace("\\", "/")
+                if request:
+                    return request.build_absolute_uri(media_url)
+                return media_url
+
+    if image_url:
+        return optimize_cloudinary_url(image_url, width)
+
+    try:
+        image_url = image.url.replace("http://res.cloudinary.com/", "https://res.cloudinary.com/")
+        return optimize_cloudinary_url(image_url, width)
+    except Exception:
+        cloud_name = getattr(settings, "CLOUDINARY_STORAGE", {}).get("CLOUD_NAME")
+        if cloud_name:
+            return optimize_cloudinary_url(
+                f"https://res.cloudinary.com/{cloud_name}/image/upload/{image_name}",
+                width,
+            )
+        media_url = f"{settings.MEDIA_URL}{image_name}".replace("\\", "/")
+        if request:
+            return request.build_absolute_uri(media_url)
+        return media_url
+
 class CategorySerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+    children = serializers.SerializerMethodField()
+
     class Meta:
         model = Category
         fields = '__all__'
 
+    def get_image_url(self, obj):
+        return resolve_image_url(obj.image, self.context.get('request'), width=320)
+
+    def get_children(self, obj):
+        children = obj.children.filter(is_active=True).order_by('sort_order', 'name')
+        return CategorySerializer(children, many=True, context=self.context).data
+
+class CategorySummarySerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'slug', 'section', 'parent', 'image_url']
+
+    def get_image_url(self, obj):
+        return resolve_image_url(obj.image, self.context.get('request'), width=320)
+
 class ProductSerializer(serializers.ModelSerializer):
-    category = CategorySerializer(read_only=True)
+    category = CategorySummarySerializer(read_only=True)
     image_url = serializers.SerializerMethodField()
     active_discount = serializers.SerializerMethodField()
     discounted_price = serializers.SerializerMethodField()
@@ -18,20 +109,10 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_image_url(self, obj):
-        if obj.image:
-            return obj.image.url
-        return None
+        return resolve_image_url(obj.image, self.context.get('request'), width=640)
 
     def get_active_discount(self, obj):
-        """Returns discount_percentage only during the actual offer window (event_start → event_end)."""
-        if obj.discount_percentage <= 0 or not obj.offer_banner:
-            return 0
-        from django.utils import timezone
-        now = timezone.now()
-        b = obj.offer_banner
-        if b.is_active and b.event_start <= now <= b.event_end:
-            return obj.discount_percentage
-        return 0
+        return obj.discount_percentage if obj.discount_percentage > 0 else 0
 
     def get_discounted_price(self, obj):
         """Returns the sale price if offer is active, else None."""
@@ -54,21 +135,11 @@ class CartItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_product_image(self, obj):
-        if obj.product.image:
-            return obj.product.image.url
-        return None
+        return resolve_image_url(obj.product.image, self.context.get('request'), width=320)
 
     def get_product_active_discount(self, obj):
-        """Reuse the same offer window logic: active only between event_start and event_end."""
         p = obj.product
-        if p.discount_percentage <= 0 or not p.offer_banner:
-            return 0
-        from django.utils import timezone
-        now = timezone.now()
-        b = p.offer_banner
-        if b.is_active and b.event_start <= now <= b.event_end:
-            return p.discount_percentage
-        return 0
+        return p.discount_percentage if p.discount_percentage > 0 else 0
 
     def get_product_discounted_price(self, obj):
         discount = self.get_product_active_discount(obj)
@@ -111,7 +182,20 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(username=username, email=email, password=password)
         return user
 
-class OfferBannerSerializer(serializers.ModelSerializer):
+class HeroBannerSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+    target_url = serializers.SerializerMethodField()
+
     class Meta:
-        model = OfferBanner
+        model = HeroBanner
         fields = '__all__'
+
+    def get_image_url(self, obj):
+        return resolve_image_url(obj.image, self.context.get('request'), width=1200)
+
+    def get_target_url(self, obj):
+        if obj.product_id:
+            return f"/product/{obj.product_id}"
+        if obj.category:
+            return f"/products?category={obj.category.slug}"
+        return "/products"

@@ -1,46 +1,74 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { FaShoppingCart, FaStar } from "react-icons/fa";
 
 function ProductCard({ product }) {
+    const [imageFailed, setImageFailed] = useState(false);
     const discount = product.active_discount || 0;
     const isOnSale = discount > 0 && product.discounted_price;
 
     return (
-        <Link to={`/product/${product.id}`}>
-            <div className="relative bg-white rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] transition-transform p-4 cursor-pointer">
-                {/* Discount badge */}
+        <Link
+            to={`/product/${product.id}`}
+            className="group block rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+        >
+            <div className="relative overflow-hidden rounded-md bg-slate-50">
                 {isOnSale && (
-                    <span className="absolute top-2 left-2 z-10 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-md shadow">
+                    <span className="absolute left-3 top-3 z-10 rounded-md bg-rose-600 px-2 py-1 text-xs font-black text-white shadow">
                         -{discount}%
                     </span>
                 )}
 
-                <div className="w-full aspect-square bg-gray-50 rounded-lg mb-4 flex items-center justify-center overflow-hidden">
-                    <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-full h-full object-contain"
-                        loading="lazy"
-                    />
-                </div>
+                {(product.is_hot || product.is_weekly_top) && (
+                    <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-xs font-black text-amber-700">
+                        <FaStar />
+                        Hot
+                    </span>
+                )}
 
-                <h2 className="text-lg font-semibold text-gray-800 truncate">
+                <div className="flex aspect-square items-center justify-center p-4">
+                    {product.image_url && !imageFailed ? (
+                        <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
+                            loading="lazy"
+                            onError={() => setImageFailed(true)}
+                        />
+                    ) : (
+                        <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-slate-300 text-slate-400">
+                            <FaShoppingCart className="text-3xl" />
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="pt-4">
+                <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-400">
+                    {product.category?.name || "Product"}
+                </p>
+                <h2 className="line-clamp-2 min-h-11 text-base font-black leading-snug text-slate-900">
                     {product.name}
                 </h2>
 
                 {isOnSale ? (
-                    <div className="flex items-center gap-2 flex-wrap mt-1">
-                        <span className="text-red-400 line-through text-sm">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold text-slate-400 line-through">
                             ${product.price}
                         </span>
-                        <span className="text-emerald-600 font-bold text-base">
+                        <span className="text-lg font-black text-emerald-700">
                             ${product.discounted_price}
                         </span>
                     </div>
                 ) : (
-                    <p className="text-emerald-600 font-medium mt-1">
+                    <p className="mt-3 text-lg font-black text-emerald-700">
                         ${product.price}
                     </p>
                 )}
+
+                <span className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-md bg-slate-950 text-sm font-black text-white transition group-hover:bg-emerald-700">
+                    View product
+                </span>
             </div>
         </Link>
     );

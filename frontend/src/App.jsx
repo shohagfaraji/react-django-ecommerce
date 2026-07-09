@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AlertProvider } from "./context/AlertContext";
-
 import SaleProducts from "./pages/SaleProducts";
 import ProductList from "../src/pages/ProductList";
 import ProductDetails from "../src/pages/ProductDetails";
@@ -20,12 +19,6 @@ import Footer from "./components/Footer";
 function App() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    useEffect(() => {
-        fetch(`${import.meta.env.VITE_DJANGO_BASE_URL}/api/categories/`).catch(
-            () => {},
-        );
-    }, []);
-
     return (
         <AlertProvider>
             <Router>
@@ -35,7 +28,7 @@ function App() {
                     onClose={() => setSidebarOpen(false)}
                 />
 
-                <div className="md:ml-[60px]">
+                <div className="md:ml-[286px]">
                     <Routes>
                         <Route path="/" element={<ProductList />} />
                         <Route path="/products" element={<ProductList />} />

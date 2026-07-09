@@ -40,9 +40,7 @@ function SaleProducts() {
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-6">
                     <FaBolt className="text-red-500 text-2xl" />
-                    <h1 className="text-3xl font-bold text-gray-800">
-                        Sale & Offers
-                    </h1>
+                    <h1 className="text-3xl font-bold text-gray-800">Deals</h1>
                     {!loading && products.length > 0 && (
                         <span className="ml-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
                             {products.length} deals
@@ -62,8 +60,7 @@ function SaleProducts() {
                         ))
                     ) : (
                         <p className="col-span-full text-center text-gray-500 py-20">
-                            No active sale products right now. Check back during
-                            the next offer period!
+                            No discounted products right now.
                         </p>
                     )}
                 </div>
