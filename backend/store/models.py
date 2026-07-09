@@ -37,6 +37,8 @@ class Category(models.Model):
             models.Index(fields=['parent']),
             models.Index(fields=['section']),
             models.Index(fields=['is_featured']),
+            models.Index(fields=['is_active', 'parent']),
+            models.Index(fields=['is_featured', 'is_active']),
         ]
 
     def __str__(self):
@@ -65,6 +67,9 @@ class Product(models.Model):
             models.Index(fields=['-created_at']),
             models.Index(fields=['is_hot']),
             models.Index(fields=['is_featured']),
+            models.Index(fields=['is_weekly_top']),
+            models.Index(fields=['discount_percentage']),
+            models.Index(fields=['is_hot', 'is_weekly_top']),
         ]
 
     def __str__(self):
@@ -150,6 +155,7 @@ class HeroBanner(models.Model):
         indexes = [
             models.Index(fields=['is_active', 'show_on_home']),
             models.Index(fields=['sort_order']),
+            models.Index(fields=['starts_at', 'ends_at']),
         ]
 
     def __str__(self):

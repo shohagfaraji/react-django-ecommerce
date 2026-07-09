@@ -3,20 +3,22 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 from .models import Product, Category, Cart, CartItem, Order, OrderItem, HeroBanner
-from .serializers import ProductSerializer, CategorySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, HeroBannerSerializer
+from .serializers import ProductSerializer, CategorySerializer, CategorySummarySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, HeroBannerSerializer
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.core.cache import cache
 import os
 from django.contrib.auth.models import User
+from .cache_utils import store_cache_key
 
 
 def cached_api_data(key, factory, timeout=300):
-    data = cache.get(key)
+    versioned_key = store_cache_key(key)
+    data = cache.get(versioned_key)
     if data is None:
         data = factory()
-        cache.set(key, data, timeout)
+        cache.set(versioned_key, data, timeout)
     return data
 
 @api_view(['GET'])
@@ -271,30 +273,31 @@ def get_homepage(request):
             Q(is_hot=True) | Q(is_weekly_top=True)
         ).order_by('-is_hot', '-is_weekly_top', '-created_at')[:10]
 
-        featured_products = Product.objects.select_related('category', 'category__parent').filter(
-            is_featured=True
-        ).order_by('-created_at')[:12]
-
         featured_categories = Category.objects.filter(
             parent__isnull=True,
             is_active=True,
             is_featured=True,
-        ).prefetch_related('children').order_by('sort_order', 'name')[:6]
+        ).prefetch_related(
+            Prefetch(
+                'children',
+                queryset=Category.objects.filter(is_active=True).only('id', 'parent_id'),
+            )
+        ).order_by('sort_order', 'name')[:4]
 
         category_sections = []
         for category in featured_categories:
-            child_ids = list(category.children.filter(is_active=True).values_list('id', flat=True))
+            child_ids = [child.id for child in category.children.all()]
             products = Product.objects.select_related('category', 'category__parent').filter(
                 Q(category=category) | Q(category_id__in=child_ids)
-            ).filter(is_featured=True).order_by('-created_at')[:8]
+            ).filter(is_featured=True).order_by('-created_at')[:6]
 
             if not products:
                 products = Product.objects.select_related('category', 'category__parent').filter(
                     Q(category=category) | Q(category_id__in=child_ids)
-                ).order_by('-created_at')[:8]
+                ).order_by('-created_at')[:6]
 
             category_sections.append({
-                'category': CategorySerializer(category, context={'request': request}).data,
+                'category': CategorySummarySerializer(category, context={'request': request}).data,
                 'products': ProductSerializer(products, many=True, context={'request': request}).data,
             })
 
@@ -302,7 +305,7 @@ def get_homepage(request):
             'hero_banners': HeroBannerSerializer(hero_banners, many=True, context={'request': request}).data,
             'offer_products': ProductSerializer(deal_products, many=True, context={'request': request}).data,
             'hot_products': ProductSerializer(hot_products, many=True, context={'request': request}).data,
-            'featured_products': ProductSerializer(featured_products, many=True, context={'request': request}).data,
+            'featured_products': [],
             'category_sections': category_sections,
         }
 

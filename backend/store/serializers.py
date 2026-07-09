@@ -85,7 +85,11 @@ class CategorySerializer(serializers.ModelSerializer):
         return resolve_image_url(obj.image, self.context.get('request'), width=320)
 
     def get_children(self, obj):
-        children = obj.children.filter(is_active=True).order_by('sort_order', 'name')
+        prefetched_children = getattr(obj, '_prefetched_objects_cache', {}).get('children')
+        if prefetched_children is not None:
+            children = [child for child in prefetched_children if child.is_active]
+        else:
+            children = obj.children.filter(is_active=True).order_by('sort_order', 'name')
         return CategorySerializer(children, many=True, context=self.context).data
 
 class CategorySummarySerializer(serializers.ModelSerializer):
