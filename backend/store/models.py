@@ -129,18 +129,10 @@ class HeroBanner(models.Model):
     category = models.ForeignKey(
         Category,
         null=True,
-        blank=True,
         on_delete=models.SET_NULL,
         related_name='hero_banners',
-        help_text="Optional category to open when this banner is clicked.",
-    )
-    product = models.ForeignKey(
-        Product,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='hero_banners',
-        help_text="Optional product to open when this banner is clicked.",
+        limit_choices_to={'parent__isnull': True, 'is_active': True},
+        help_text="Top-level category to open when this banner is clicked.",
     )
     button_text = models.CharField(max_length=60, default='Shop now')
     is_active = models.BooleanField(default=True)

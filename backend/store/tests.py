@@ -45,6 +45,34 @@ class ProductDiscountTests(TestCase):
         self.assertIsNone(data["discounted_price"])
 
 
+class AuthTests(APITestCase):
+    """Tests for handled JWT login responses."""
+
+    def setUp(self):
+        User.objects.create_user(username="loginuser", password="pass123")
+
+    def test_login_success_returns_tokens(self):
+        res = self.client.post(
+            "/api/token/",
+            {"username": "loginuser", "password": "pass123"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertTrue(res.data["success"])
+        self.assertIn("access", res.data)
+        self.assertIn("refresh", res.data)
+
+    def test_login_invalid_credentials_returns_handled_response(self):
+        res = self.client.post(
+            "/api/token/",
+            {"username": "loginuser", "password": "wrong"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertFalse(res.data["success"])
+        self.assertEqual(res.data["detail"], "Invalid username or password.")
+
+
 class CartTests(APITestCase):
     """Tests for /api/cart/add/ and /api/cart/update/."""
 

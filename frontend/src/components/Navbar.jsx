@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useCart } from "../context/CartContext.jsx";
 import {
     FaBars,
-    FaChevronDown,
     FaSearch,
     FaShoppingCart,
     FaStore,
@@ -83,14 +82,6 @@ function Navbar({ onMenuToggle }) {
                         <FaStore />
                     </span>
                     <span>VoltEdge</span>
-                </Link>
-
-                <Link
-                    to="/products"
-                    className="hidden h-10 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 lg:inline-flex"
-                >
-                    Departments
-                    <FaChevronDown className="text-xs text-slate-400" />
                 </Link>
 
                 <form

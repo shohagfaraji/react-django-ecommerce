@@ -1,14 +1,26 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { authFetch, getAccessToken } from "../utils/auth";
 
 const CartContext = createContext();
+
+const calculateCartTotal = (items) =>
+    items.reduce((sum, item) => {
+        const unitPrice = item.product_discounted_price
+            ? parseFloat(item.product_discounted_price)
+            : parseFloat(item.product_price || 0);
+        return sum + unitPrice * item.quantity;
+    }, 0);
 
 export const CartProvider = ({ children }) => {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const [cartItems, setCartItems] = useState([]);
     const [total, setTotal] = useState(0);
 
-    //Fetch Cart from backend
+    const applyCartItems = (items) => {
+        setCartItems(items);
+        setTotal(calculateCartTotal(items));
+    };
+
     const fetchCart = async () => {
         const token = getAccessToken();
         if (!token) return;
@@ -16,45 +28,39 @@ export const CartProvider = ({ children }) => {
         try {
             const res = await authFetch(`${BASEURL}/api/cart/`);
             const data = await res.json();
-            const items = data.items || [];
-            setCartItems(items);
-
-            // Recalculate total using discounted price when offer is active
-            const computedTotal = items.reduce((sum, item) => {
-                const unitPrice = item.product_discounted_price
-                    ? parseFloat(item.product_discounted_price)
-                    : parseFloat(item.product_price);
-                return sum + unitPrice * item.quantity;
-            }, 0);
-            setTotal(computedTotal);
+            applyCartItems(data.items || []);
         } catch (error) {
             console.error("Error fetching cart:", error);
         }
     };
 
     useEffect(() => {
-        fetchCart();
+        void fetchCart();
     }, []);
 
     const addToCart = async (productId) => {
-        // Optimistic update — increment count immediately, no waiting
-        setCartItems((prev) => {
-            const existing = prev.find(
-                (i) => i.product === productId || i.product?.id === productId,
-            );
-            if (existing) {
-                return prev.map((i) =>
-                    i.product === productId || i.product?.id === productId
-                        ? { ...i, quantity: i.quantity + 1 }
-                        : i,
-                );
-            }
-            // New item placeholder so count updates instantly
-            return [
-                ...prev,
-                { id: `temp-${productId}`, product: productId, quantity: 1 },
-            ];
-        });
+        const previousItems = cartItems;
+        const existing = cartItems.find(
+            (item) =>
+                item.product === productId || item.product?.id === productId,
+        );
+
+        const nextItems = existing
+            ? cartItems.map((item) =>
+                  item.product === productId || item.product?.id === productId
+                      ? { ...item, quantity: item.quantity + 1 }
+                      : item,
+              )
+            : [
+                  ...cartItems,
+                  {
+                      id: `temp-${productId}`,
+                      product: productId,
+                      quantity: 1,
+                  },
+              ];
+
+        applyCartItems(nextItems);
 
         try {
             await authFetch(`${BASEURL}/api/cart/add/`, {
@@ -62,51 +68,59 @@ export const CartProvider = ({ children }) => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ product_id: productId }),
             });
-            // Sync real state from server after optimistic update
-            fetchCart();
+            void fetchCart();
         } catch (error) {
             console.error("Error adding to cart:", error);
-            fetchCart(); // Revert on error by re-syncing
+            applyCartItems(previousItems);
+            void fetchCart();
         }
     };
 
     const removeFromCart = async (itemId) => {
+        const previousItems = cartItems;
+        const nextItems = cartItems.filter((item) => item.id !== itemId);
+        applyCartItems(nextItems);
+
         try {
             await authFetch(`${BASEURL}/api/cart/remove/`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ item_id: itemId }),
             });
-            fetchCart();
         } catch (error) {
-            console.error("Error adding to cart:", error);
+            console.error("Error removing from cart:", error);
+            applyCartItems(previousItems);
+            void fetchCart();
         }
     };
 
     const updateQuantity = async (itemId, quantity) => {
         if (quantity < 1) {
-            await removeFromCart(itemId);
+            void removeFromCart(itemId);
             return;
         }
+
+        const previousItems = cartItems;
+        const nextItems = cartItems.map((item) =>
+            item.id === itemId ? { ...item, quantity } : item,
+        );
+        applyCartItems(nextItems);
+
         try {
             await authFetch(`${BASEURL}/api/cart/update/`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ item_id: itemId, quantity }),
             });
-            fetchCart();
         } catch (error) {
-            console.error("Error adding to cart:", error);
+            console.error("Error updating cart:", error);
+            applyCartItems(previousItems);
+            void fetchCart();
         }
     };
 
     const clearCart = () => {
-        setCartItems([]);
-        setTotal(0);
+        applyCartItems([]);
     };
 
     return (

@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
     FaBaby,
+    FaBars,
+    FaChevronLeft,
     FaChevronRight,
     FaLeaf,
     FaMobileAlt,
@@ -73,7 +75,7 @@ const fallbackCategories = [
     },
 ];
 
-function Sidebar({ isOpen, onClose }) {
+function Sidebar({ isOpen, onOpen, onClose }) {
     const [categories, setCategories] = useState(fallbackCategories);
     const navigate = useNavigate();
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -96,12 +98,24 @@ function Sidebar({ isOpen, onClose }) {
 
     const openCategory = (slug) => {
         navigate(`/products?category=${slug}`);
-        onClose();
+        if (window.innerWidth < 768) onClose();
     };
 
     return (
         <>
             {isOpen && <div className="sidebar-backdrop" onClick={onClose} />}
+
+            {!isOpen && (
+                <button
+                    type="button"
+                    className="sidebar-rail"
+                    onClick={onOpen}
+                    aria-label="Open departments"
+                >
+                    <FaBars />
+                    <span>Departments</span>
+                </button>
+            )}
 
             <aside
                 className={`market-sidebar ${isOpen ? "mobile-open" : ""}`}
@@ -118,7 +132,8 @@ function Sidebar({ isOpen, onClose }) {
                         onClick={onClose}
                         aria-label="Close category menu"
                     >
-                        <FaTimes />
+                        <FaChevronLeft className="sidebar-collapse-icon" />
+                        <FaTimes className="sidebar-mobile-close-icon" />
                     </button>
                 </div>
 
@@ -160,7 +175,13 @@ function Sidebar({ isOpen, onClose }) {
                     ))}
                 </div>
 
-                <Link to="/sale" className="sidebar-promo" onClick={onClose}>
+                <Link
+                    to="/sale"
+                    className="sidebar-promo"
+                    onClick={() => {
+                        if (window.innerWidth < 768) onClose();
+                    }}
+                >
                     <span>Live offers</span>
                     <strong>Browse active discounts</strong>
                 </Link>

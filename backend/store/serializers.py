@@ -198,8 +198,6 @@ class HeroBannerSerializer(serializers.ModelSerializer):
         return resolve_image_url(obj.image, self.context.get('request'), width=1200)
 
     def get_target_url(self, obj):
-        if obj.product_id:
-            return f"/product/{obj.product_id}"
         if obj.category:
             return f"/products?category={obj.category.slug}"
         return "/products"

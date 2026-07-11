@@ -10,6 +10,12 @@
     border-right: 1px solid #e2e8f0;
     background: #ffffff;
     box-shadow: 8px 0 24px rgba(15, 23, 42, 0.06);
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+}
+
+.market-sidebar.mobile-open {
+    transform: translateX(0);
 }
 
 .sidebar-head {
@@ -38,7 +44,7 @@
 }
 
 .sidebar-close {
-    display: none;
+    display: flex;
     height: 34px;
     width: 34px;
     align-items: center;
@@ -47,6 +53,54 @@
     border-radius: 8px;
     background: #fff;
     color: #0f172a;
+    cursor: pointer;
+}
+
+.sidebar-close:hover {
+    border-color: #059669;
+    color: #047857;
+}
+
+.sidebar-mobile-close-icon {
+    display: none;
+}
+
+.sidebar-rail {
+    position: fixed;
+    top: 92px;
+    left: 12px;
+    z-index: 39;
+    display: none;
+    width: 44px;
+    min-height: 150px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border: 1px solid #dbe3ea;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+    transition:
+        border-color 0.18s ease,
+        color 0.18s ease,
+        transform 0.18s ease;
+}
+
+.sidebar-rail:hover {
+    border-color: #059669;
+    color: #047857;
+    transform: translateX(2px);
+}
+
+.sidebar-rail span {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .department-list {
@@ -72,6 +126,7 @@
     padding: 10px;
     color: #0f172a;
     text-align: left;
+    cursor: pointer;
     transition:
         background 0.18s ease,
         color 0.18s ease;
@@ -131,6 +186,7 @@
     font-weight: 700;
     line-height: 1;
     padding: 7px 8px;
+    cursor: pointer;
 }
 
 .subcategory-grid button:hover {
@@ -145,6 +201,7 @@
     background: #0f172a;
     padding: 14px;
     color: #fff;
+    cursor: pointer;
 }
 
 .sidebar-promo span {
@@ -167,6 +224,10 @@ body.nav-hidden .market-sidebar {
     height: 100vh;
 }
 
+body.nav-hidden .sidebar-rail {
+    top: 20px;
+}
+
 .sidebar-backdrop {
     display: none;
 }
@@ -177,16 +238,18 @@ body.nav-hidden .market-sidebar {
         z-index: 60;
         width: min(88vw, 320px);
         height: 100vh;
-        transform: translateX(-100%);
-        transition: transform 0.25s ease;
-    }
-
-    .market-sidebar.mobile-open {
-        transform: translateX(0);
     }
 
     .sidebar-close {
         display: flex;
+    }
+
+    .sidebar-collapse-icon {
+        display: none;
+    }
+
+    .sidebar-mobile-close-icon {
+        display: block;
     }
 
     .sidebar-backdrop {
@@ -195,5 +258,11 @@ body.nav-hidden .market-sidebar {
         z-index: 55;
         display: block;
         background: rgba(15, 23, 42, 0.45);
+    }
+}
+
+@media (min-width: 768px) {
+    .sidebar-rail {
+        display: flex;
     }
 }

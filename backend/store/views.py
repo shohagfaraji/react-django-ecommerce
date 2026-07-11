@@ -9,7 +9,9 @@ from django.db import transaction
 from django.db.models import Prefetch, Q
 from django.core.cache import cache
 import os
+from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from rest_framework_simplejwt.tokens import RefreshToken
 from .cache_utils import store_cache_key
 
 
@@ -20,6 +22,48 @@ def cached_api_data(key, factory, timeout=300):
         data = factory()
         cache.set(versioned_key, data, timeout)
     return data
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_token(request):
+    username = request.data.get('username', '').strip()
+    password = request.data.get('password', '')
+
+    if not username or not password:
+        return Response({
+            'success': False,
+            'detail': 'Username and password are required.',
+        })
+
+    user = authenticate(request, username=username, password=password)
+    if not user:
+        return Response({
+            'success': False,
+            'detail': 'Invalid username or password.',
+        })
+
+    refresh = RefreshToken.for_user(user)
+    return Response({
+        'success': True,
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    })
+
+
+def get_category_tree_ids(category):
+    ids = [category.id]
+    pending = [category.id]
+
+    while pending:
+        child_ids = list(
+            Category.objects.filter(parent_id__in=pending, is_active=True)
+            .values_list('id', flat=True)
+        )
+        pending = [child_id for child_id in child_ids if child_id not in ids]
+        ids.extend(pending)
+
+    return ids
 
 @api_view(['GET'])
 def get_products(request):
@@ -34,8 +78,7 @@ def get_products(request):
     if category_slug:
         category = Category.objects.filter(slug__iexact=category_slug).first()
         if category:
-            child_ids = list(category.children.values_list('id', flat=True))
-            products = products.filter(Q(category=category) | Q(category_id__in=child_ids))
+            products = products.filter(category_id__in=get_category_tree_ids(category))
         else:
             products = products.none()
 
@@ -237,7 +280,7 @@ def get_sale_products(request):
 @api_view(['GET'])
 def get_hero_banners(request):
     now = timezone.now()
-    banners = HeroBanner.objects.select_related('category', 'product').filter(
+    banners = HeroBanner.objects.select_related('category').filter(
         is_active=True,
         show_on_home=True,
     ).filter(
@@ -257,7 +300,7 @@ def get_homepage(request):
     now = timezone.now()
 
     def build_homepage_data():
-        hero_banners = HeroBanner.objects.select_related('category', 'product').filter(
+        hero_banners = HeroBanner.objects.select_related('category').filter(
             is_active=True,
             show_on_home=True,
         ).filter(

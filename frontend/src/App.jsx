@@ -1,5 +1,10 @@
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
-import { useState } from "react";
+import {
+    BrowserRouter as Router,
+    Route,
+    Routes,
+    useLocation,
+} from "react-router-dom";
+import { useEffect, useState } from "react";
 import { AlertProvider } from "./context/AlertContext";
 import SaleProducts from "./pages/SaleProducts";
 import ProductList from "../src/pages/ProductList";
@@ -16,19 +21,44 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Footer from "./components/Footer";
 
+function ScrollToTop() {
+    const { pathname, search } = useLocation();
+
+    useEffect(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }, [pathname, search]);
+
+    return null;
+}
+
 function App() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia("(min-width: 768px)");
+        const syncSidebar = () => setSidebarOpen(mediaQuery.matches);
+
+        syncSidebar();
+        mediaQuery.addEventListener("change", syncSidebar);
+        return () => mediaQuery.removeEventListener("change", syncSidebar);
+    }, []);
 
     return (
         <AlertProvider>
             <Router>
+                <ScrollToTop />
                 <Navbar onMenuToggle={() => setSidebarOpen((prev) => !prev)} />
                 <Sidebar
                     isOpen={sidebarOpen}
+                    onOpen={() => setSidebarOpen(true)}
                     onClose={() => setSidebarOpen(false)}
                 />
 
-                <div className="md:ml-[286px]">
+                <div
+                    className={`transition-[margin] duration-300 ${
+                        sidebarOpen ? "md:ml-[286px]" : "md:ml-0"
+                    }`}
+                >
                     <Routes>
                         <Route path="/" element={<ProductList />} />
                         <Route path="/products" element={<ProductList />} />

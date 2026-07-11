@@ -82,18 +82,26 @@ class CategoryAdmin(ImageUploadAdminMixin, StoreCacheInvalidationAdminMixin, adm
 @admin.register(HeroBanner)
 class HeroBannerAdmin(ImageUploadAdminMixin, StoreCacheInvalidationAdminMixin, admin.ModelAdmin):
     image_folder = 'hero_banners'
-    list_display = ('title', 'category', 'product', 'show_on_home', 'is_active', 'sort_order', 'starts_at', 'ends_at')
+    list_display = ('title', 'category', 'show_on_home', 'is_active', 'sort_order', 'starts_at', 'ends_at')
     list_filter = ('show_on_home', 'is_active', 'category')
     search_fields = ('title', 'subtitle')
     list_editable = ('show_on_home', 'is_active', 'sort_order')
-    autocomplete_fields = ('category', 'product')
-    list_select_related = ('category', 'product')
+    autocomplete_fields = ('category',)
+    list_select_related = ('category',)
     ordering = ('sort_order', '-created_at')
     show_full_result_count = False
     list_per_page = 25
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('category', 'product')
+        return super().get_queryset(request).select_related('category')
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == 'category':
+            kwargs['queryset'] = Category.objects.filter(
+                parent__isnull=True,
+                is_active=True,
+            ).order_by('sort_order', 'name')
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):

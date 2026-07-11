@@ -30,12 +30,12 @@ function Login() {
 
             const data = await res.json();
 
-            if (res.ok) {
+            if (res.ok && data.success !== false) {
                 saveTokens(data);
                 localStorage.setItem("username", form.username);
-                await fetchCart();
+                void fetchCart();
                 showAlert("Login successful");
-                setTimeout(() => nav("/"), 500);
+                nav("/");
             } else {
                 setMsg(data.detail || "Invalid username or password");
             }
@@ -50,7 +50,7 @@ function Login() {
     return (
         <AuthShell
             title="Welcome back"
-            copy="Sign in to manage your cart, compare products, and continue checkout."
+            copy="Access your account and pick up right where you left off."
         >
             <form onSubmit={handleSubmit} className="space-y-4">
                 <Field
@@ -110,8 +110,8 @@ function AuthShell({ title, copy, children }) {
                             VoltEdge account access
                         </h1>
                         <p className="mt-4 text-sm leading-6 text-slate-300">
-                            A portfolio-ready ecommerce flow with authenticated
-                            cart, checkout, admin products, and deployed APIs.
+                            Sign in to continue shopping, manage your cart, and
+                            check out faster.
                         </p>
                     </div>
                     <p className="text-xs font-black uppercase tracking-wide text-emerald-300">

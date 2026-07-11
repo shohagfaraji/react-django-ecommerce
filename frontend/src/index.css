@@ -11,6 +11,26 @@
     }
 }
 
+@keyframes heroFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 .animate-slideIn {
     animation: slideIn 0.3s ease;
+}
+
+button,
+a,
+[role="button"] {
+    cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+    cursor: not-allowed;
 }

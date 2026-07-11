@@ -281,50 +281,84 @@ function HomeSlider({ banners, fallbackProducts, loading }) {
 }
 
 function SliderVisual({ image, title }) {
-    const [status, setStatus] = useState(() =>
-        image && loadedHeroImages.has(image) ? "loaded" : "loading",
+    const [visibleImage, setVisibleImage] = useState(
+        image && loadedHeroImages.has(image) ? image : null,
     );
+    const [incomingImage, setIncomingImage] = useState(null);
+    const [status, setStatus] = useState(image ? "loading" : "missing");
 
     useEffect(() => {
         if (!image) {
             setStatus("missing");
+            setIncomingImage(null);
             return undefined;
         }
 
-        if (loadedHeroImages.has(image)) {
+        if (image === visibleImage) {
             setStatus("loaded");
             return undefined;
         }
 
         let cancelled = false;
-        const preview = new Image();
-        setStatus("loading");
+        let transitionTimer;
 
-        preview.onload = () => {
+        const revealImage = () => {
             if (cancelled) return;
-            loadedHeroImages.add(image);
+            setIncomingImage(image);
             setStatus("loaded");
+            transitionTimer = setTimeout(() => {
+                if (cancelled) return;
+                setVisibleImage(image);
+                setIncomingImage(null);
+            }, 520);
         };
-        preview.onerror = () => {
-            if (!cancelled) setStatus("failed");
-        };
-        preview.src = image;
+
+        if (loadedHeroImages.has(image)) {
+            revealImage();
+        } else {
+            const preview = new Image();
+            setStatus(visibleImage ? "loading-next" : "loading");
+
+            preview.onload = () => {
+                loadedHeroImages.add(image);
+                revealImage();
+            };
+            preview.onerror = () => {
+                if (!cancelled) setStatus(visibleImage ? "loaded" : "failed");
+            };
+            preview.src = image;
+        }
 
         return () => {
             cancelled = true;
+            clearTimeout(transitionTimer);
         };
-    }, [image]);
+    }, [image, visibleImage]);
 
-    if (image && status === "loaded") {
+    if (visibleImage || incomingImage) {
         return (
-            <div
-                role="img"
-                aria-label={title}
-                className="absolute inset-0 min-h-[300px] bg-cover bg-center transition-opacity duration-500"
-                style={{
-                    backgroundImage: `url("${image}")`,
-                }}
-            />
+            <div className="absolute inset-0 min-h-[300px] overflow-hidden bg-slate-950">
+                {visibleImage && (
+                    <div
+                        role="img"
+                        aria-label={title}
+                        className="absolute inset-0 bg-cover bg-center"
+                        style={{
+                            backgroundImage: `url("${visibleImage}")`,
+                        }}
+                    />
+                )}
+                {incomingImage && (
+                    <div
+                        role="img"
+                        aria-label={title}
+                        className="absolute inset-0 bg-cover bg-center opacity-0 animate-[heroFadeIn_520ms_ease-out_forwards]"
+                        style={{
+                            backgroundImage: `url("${incomingImage}")`,
+                        }}
+                    />
+                )}
+            </div>
         );
     }
 
@@ -337,6 +371,19 @@ function SliderVisual({ image, title }) {
                     aria-hidden="true"
                 />
             </div>
+        );
+    }
+
+    if (image && status === "loaded") {
+        return (
+            <div
+                role="img"
+                aria-label={title}
+                className="absolute inset-0 min-h-[300px] bg-cover bg-center transition-opacity duration-500"
+                style={{
+                    backgroundImage: `url("${image}")`,
+                }}
+            />
         );
     }
 
@@ -424,8 +471,8 @@ function ProductSection({
 
     return (
         <section>
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
+            <div className="mb-5 flex items-end justify-between gap-4">
+                <div className="min-w-0">
                     <div className="mb-2 flex items-center gap-2 text-emerald-700">
                         {icon}
                         <p className="text-xs font-black uppercase tracking-wide">
@@ -439,15 +486,15 @@ function ProductSection({
                 {viewAllLink && (
                     <Link
                         to={viewAllLink}
-                        className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:bg-white"
+                        className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-slate-300 px-3 text-sm font-bold text-slate-700 transition hover:bg-white sm:px-4"
                     >
-                        View all
+                        <span className="hidden sm:inline">View all</span>
                         <FaArrowRight className="text-xs" />
                     </Link>
                 )}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {loading
                     ? Array.from({ length: 5 }).map((_, index) => (
                           <SkeletonCard key={index} />
