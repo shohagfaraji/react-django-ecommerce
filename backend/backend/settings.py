@@ -114,6 +114,11 @@ CLOUDINARY_STORAGE = {
     'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
 }
 
+USE_CLOUDINARY_MEDIA = os.getenv(
+    'USE_CLOUDINARY_MEDIA',
+    'true' if os.getenv('RENDER') or os.getenv('RENDER_EXTERNAL_HOSTNAME') or not DEBUG else 'false',
+).lower() == 'true'
+
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",

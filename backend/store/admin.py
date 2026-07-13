@@ -26,13 +26,13 @@ class ImageUploadAdminMixin:
     def save_model(self, request, obj, form, change):
         image = form.cleaned_data.get('image') if 'image' in form.cleaned_data else None
         if image and hasattr(image, 'read'):
-            if settings.DEBUG:
+            if not settings.USE_CLOUDINARY_MEDIA:
                 storage = FileSystemStorage(location=settings.MEDIA_ROOT)
                 saved_name = storage.save(f"{self.image_folder}/{image.name}", image)
                 obj.image = saved_name
             else:
                 try:
-                    upload_result = cloudinary.uploader.upload(
+                    uploaded_image = cloudinary.uploader.upload_image(
                         image,
                         folder=self.image_folder,
                         resource_type='image',
@@ -43,7 +43,7 @@ class ImageUploadAdminMixin:
                 except Exception as exc:
                     raise ValidationError(f"Cloudinary upload failed: {exc}") from exc
 
-                obj.image = upload_result['public_id']
+                obj.image = uploaded_image
         super().save_model(request, obj, form, change)
 
 @admin.register(Product)
