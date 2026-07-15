@@ -107,7 +107,7 @@ function AuthShell({ title, copy, children }) {
                             <FaShoppingBag />
                         </div>
                         <h1 className="mt-8 text-4xl font-black leading-tight">
-                            VoltEdge account access
+                            Winkelo account access
                         </h1>
                         <p className="mt-4 text-sm leading-6 text-slate-300">
                             Sign in to continue shopping, manage your cart, and

@@ -56,7 +56,7 @@ function Signup() {
                             <FaShoppingBag />
                         </div>
                         <h1 className="mt-8 text-4xl font-black leading-tight">
-                            Create your VoltEdge account
+                            Create your Winkelo account
                         </h1>
                         <p className="mt-4 text-sm leading-6 text-slate-300">
                             Register once, then use the authenticated cart and

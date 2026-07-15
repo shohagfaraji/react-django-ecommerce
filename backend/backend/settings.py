@@ -131,7 +131,7 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = [
-    "https://voltedgeshop.netlify.app",
+    "https://winkelo.netlify.app",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
@@ -165,6 +165,6 @@ SIMPLE_JWT = {
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "voltedge-cache",
+        "LOCATION": "winkelo-cache",
     }
 }

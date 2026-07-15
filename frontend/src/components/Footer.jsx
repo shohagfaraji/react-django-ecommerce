@@ -4,7 +4,6 @@ import {
     FaGlobe,
     FaLinkedin,
     FaShieldAlt,
-    FaStore,
     FaTruck,
 } from "react-icons/fa";
 
@@ -35,10 +34,14 @@ function Footer() {
                         to="/"
                         className="flex items-center gap-2 text-2xl font-black text-white"
                     >
-                        <span className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-600">
-                            <FaStore />
+                        <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-white">
+                            <img
+                                src="/favicon.svg"
+                                alt=""
+                                className="h-full w-full object-contain"
+                            />
                         </span>
-                        VoltEdge
+                        Winkelo
                     </Link>
                     <p className="mt-4 max-w-sm text-sm leading-6 text-slate-400">
                         A full-stack marketplace demo with departments, offers,
@@ -108,7 +111,7 @@ function Footer() {
             </div>
 
             <div className="border-t border-slate-800 px-4 py-5 text-center text-xs text-slate-500">
-                © {new Date().getFullYear()} VoltEdge. Full-stack ecommerce
+                © {new Date().getFullYear()} Winkelo. Full-stack ecommerce
                 portfolio project.
             </div>
         </footer>

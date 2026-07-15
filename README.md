@@ -1,8 +1,8 @@
-# 🛍️ VoltEdge — Full-Stack E-Commerce Platform
+# 🛍️ Winkelo — Full-Stack E-Commerce Platform
 
-VoltEdge is a full-stack e-commerce web app with a React frontend and a Django REST Framework backend. It includes JWT-based authentication, a time-windowed seasonal discount engine, product comparison, and a real-time cart — built and deployed end-to-end (Netlify + Render).
+Winkelo is a full-stack e-commerce web app with a React frontend and a Django REST Framework backend. It includes JWT-based authentication, a time-windowed seasonal discount engine, product comparison, and a real-time cart — built and deployed end-to-end (Netlify + Render).
 
-**Live demo:** https://voltedgeshop.netlify.app  
+**Live demo:** https://winkelo.netlify.app  
 **Backend API:** https://react-django-ecommerce-3cfu.onrender.com
 
 > **Note:** The project uses Supabase's free-tier PostgreSQL database. If the database is paused or expires due to free-tier limitations (In rare cases), some API requests may fail and the application may display messages such as **"Failed to fetch products."**
