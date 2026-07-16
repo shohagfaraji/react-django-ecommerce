@@ -115,7 +115,7 @@ function AuthShell({ title, copy, children }) {
                         </p>
                     </div>
                     <p className="text-xs font-black uppercase tracking-wide text-emerald-300">
-                        Full-stack marketplace
+                        Secure shopping
                     </p>
                 </section>
 

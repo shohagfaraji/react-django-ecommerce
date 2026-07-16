@@ -59,12 +59,12 @@ function Signup() {
                             Create your Winkelo account
                         </h1>
                         <p className="mt-4 text-sm leading-6 text-slate-300">
-                            Register once, then use the authenticated cart and
-                            checkout flow across the marketplace.
+                            Register once, then shop faster, save your cart,
+                            and check out with less effort.
                         </p>
                     </div>
                     <p className="text-xs font-black uppercase tracking-wide text-emerald-300">
-                        Portfolio ecommerce auth
+                        Secure shopping account
                     </p>
                 </section>
 
@@ -76,8 +76,8 @@ function Signup() {
                         Sign up
                     </h2>
                     <p className="mt-2 text-sm leading-6 text-slate-500">
-                        Create an account to test cart, checkout, and protected
-                        order workflows.
+                        Create an account to manage your cart and place orders
+                        more easily.
                     </p>
 
                     <form onSubmit={handleSubmit} className="mt-7 space-y-4">

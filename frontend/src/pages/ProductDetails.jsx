@@ -140,7 +140,7 @@ function ProductDetails() {
                         </h1>
                         <p className="mt-4 text-base leading-7 text-slate-600">
                             {product.description ||
-                                "Product details will be updated from the admin panel."}
+                                "More product details will be available soon."}
                         </p>
 
                         {isOnSale ? (
@@ -184,11 +184,11 @@ function ProductDetails() {
                         <div className="mt-7 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-600 sm:grid-cols-2">
                             <span className="flex items-center gap-2">
                                 <FaTruck className="text-emerald-700" />
-                                Fast delivery workflow
+                                Fast delivery updates
                             </span>
                             <span className="flex items-center gap-2">
                                 <FaCheckCircle className="text-emerald-700" />
-                                Admin managed catalog
+                                Quality checked products
                             </span>
                         </div>
                     </div>

@@ -194,11 +194,11 @@ function OrderSummary({ total, itemCount }) {
             <div className="mt-5 grid gap-3 rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-600">
                 <span className="flex items-center gap-2">
                     <FaShieldAlt className="text-emerald-700" />
-                    Secure authenticated checkout
+                    Secure checkout
                 </span>
                 <span className="flex items-center gap-2">
                     <FaTruck className="text-emerald-700" />
-                    Order saved in backend
+                    Delivery updates after ordering
                 </span>
             </div>
         </aside>
