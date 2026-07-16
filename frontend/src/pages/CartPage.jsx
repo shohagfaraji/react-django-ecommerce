@@ -86,7 +86,7 @@ function CartItemRow({ item, updateQuantity, removeFromCart, showAlert }) {
             <img
                 src={item.product_image}
                 alt={item.product_name}
-                className="h-24 w-24 rounded-lg bg-slate-50 object-contain p-2"
+                className="h-24 w-24 object-contain"
             />
 
             <div className="min-w-0">

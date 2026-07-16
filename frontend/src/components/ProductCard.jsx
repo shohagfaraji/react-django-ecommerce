@@ -10,7 +10,7 @@ function ProductCard({ product }) {
     return (
         <Link
             to={`/product/${product.id}`}
-            className="group block rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            className="group block overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
         >
             <div className="relative overflow-hidden rounded-md bg-slate-50">
                 {isOnSale && (
@@ -26,7 +26,7 @@ function ProductCard({ product }) {
                     </span>
                 )}
 
-                <div className="flex aspect-square items-center justify-center p-4">
+                <div className="flex aspect-square items-center justify-center">
                     {product.image_url && !imageFailed ? (
                         <img
                             src={product.image_url}
@@ -43,7 +43,7 @@ function ProductCard({ product }) {
                 </div>
             </div>
 
-            <div className="pt-4">
+            <div className="p-3 pt-4">
                 <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-400">
                     {product.category?.name || "Product"}
                 </p>
