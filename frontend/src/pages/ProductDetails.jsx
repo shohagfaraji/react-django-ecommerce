@@ -113,8 +113,8 @@ function ProductDetails() {
                     Back to marketplace
                 </Link>
 
-                <section className="grid gap-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-[0.9fr_1.1fr] md:p-8">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:grid-cols-[0.9fr_1.1fr] md:gap-8 md:p-8">
+                    <div className="bg-slate-50 md:rounded-lg">
                         <div className="flex aspect-square items-center justify-center">
                             {product.image_url && !imageFailed ? (
                                 <img
@@ -131,7 +131,7 @@ function ProductDetails() {
                         </div>
                     </div>
 
-                    <div className="flex flex-col justify-center">
+                    <div className="flex flex-col justify-center p-5 md:p-0">
                         <p className="mb-3 text-xs font-black uppercase tracking-wide text-emerald-700">
                             {product.category?.name || "Product"}
                         </p>
