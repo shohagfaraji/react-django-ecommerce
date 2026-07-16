@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaLock, FaShoppingBag, FaUser } from "react-icons/fa";
+import {
+    FaCheckCircle,
+    FaLock,
+    FaShoppingCart,
+    FaTruck,
+    FaUser,
+} from "react-icons/fa";
 import { saveTokens } from "../utils/auth";
 import { useCart } from "../context/CartContext";
 import { useAlert } from "../context/AlertContext";
@@ -103,20 +109,52 @@ function AuthShell({ title, copy, children }) {
             <div className="mx-auto grid max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.9fr_1.1fr]">
                 <section className="hidden bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
                     <div>
-                        <div className="flex h-12 w-12 items-center justify-center rounded-md bg-emerald-600 text-xl">
-                            <FaShoppingBag />
+                        <div className="flex items-center gap-3">
+                            <img
+                                src="/apple-touch-icon.png"
+                                alt=""
+                                className="h-14 w-14 object-contain"
+                            />
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wide text-emerald-300">
+                                    Winkelo
+                                </p>
+                                <p className="text-sm font-bold text-slate-300">
+                                    Your shopping account
+                                </p>
+                            </div>
                         </div>
                         <h1 className="mt-8 text-4xl font-black leading-tight">
-                            Winkelo account access
+                            Shop faster with your cart ready.
                         </h1>
                         <p className="mt-4 text-sm leading-6 text-slate-300">
                             Sign in to continue shopping, manage your cart, and
                             check out faster.
                         </p>
+                        <div className="mt-8 grid gap-3 text-sm font-bold text-slate-200">
+                            <AuthBenefit
+                                icon={<FaShoppingCart />}
+                                text="Keep your cart ready"
+                            />
+                            <AuthBenefit
+                                icon={<FaTruck />}
+                                text="Get delivery updates"
+                            />
+                            <AuthBenefit
+                                icon={<FaCheckCircle />}
+                                text="Checkout with confidence"
+                            />
+                        </div>
                     </div>
-                    <p className="text-xs font-black uppercase tracking-wide text-emerald-300">
-                        Secure shopping
-                    </p>
+                    <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                        <p className="text-xs font-black uppercase tracking-wide text-emerald-300">
+                            Member benefits
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-300">
+                            Save time at checkout and keep every order detail in
+                            one secure account.
+                        </p>
+                    </div>
                 </section>
 
                 <section className="p-6 sm:p-8 lg:p-10">
@@ -133,6 +171,15 @@ function AuthShell({ title, copy, children }) {
                 </section>
             </div>
         </main>
+    );
+}
+
+function AuthBenefit({ icon, text }) {
+    return (
+        <div className="flex items-center gap-3 rounded-md border border-white/10 bg-white/5 px-3 py-2">
+            <span className="text-emerald-300">{icon}</span>
+            <span>{text}</span>
+        </div>
     );
 }
 

@@ -1,12 +1,7 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useCart } from "../context/CartContext.jsx";
-import {
-    FaBars,
-    FaSearch,
-    FaShoppingCart,
-    FaUser,
-} from "react-icons/fa";
+import { FaBars, FaSearch, FaShoppingCart, FaUser } from "react-icons/fa";
 import { clearTokens, getAccessToken } from "../utils/auth.js";
 
 function Navbar({ onMenuToggle }) {
@@ -77,13 +72,11 @@ function Navbar({ onMenuToggle }) {
                     to="/"
                     className="flex shrink-0 items-center gap-2 text-xl font-black tracking-tight text-slate-950"
                 >
-                    <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-white ring-1 ring-slate-200">
-                        <img
-                            src="/favicon.svg"
-                            alt=""
-                            className="h-full w-full object-contain"
-                        />
-                    </span>
+                    <img
+                        src="/favicon-96x96.png"
+                        alt=""
+                        className="h-10 w-10 object-contain"
+                    />
                     <span>Winkelo</span>
                 </Link>
 
