@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaEnvelope, FaLock, FaShoppingBag, FaUser } from "react-icons/fa";
+import {
+    FaCheckCircle,
+    FaEnvelope,
+    FaLock,
+    FaShoppingCart,
+    FaTruck,
+    FaUser,
+} from "react-icons/fa";
 
 function Signup() {
     const BASE = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -52,20 +59,52 @@ function Signup() {
             <div className="mx-auto grid max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.9fr_1.1fr]">
                 <section className="hidden bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
                     <div>
-                        <div className="flex h-12 w-12 items-center justify-center rounded-md bg-emerald-600 text-xl">
-                            <FaShoppingBag />
+                        <div className="flex items-center gap-3">
+                            <img
+                                src="/apple-touch-icon.png"
+                                alt=""
+                                className="h-14 w-14 object-contain"
+                            />
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wide text-emerald-300">
+                                    Winkelo
+                                </p>
+                                <p className="text-sm font-bold text-slate-300">
+                                    Your shopping account
+                                </p>
+                            </div>
                         </div>
                         <h1 className="mt-8 text-4xl font-black leading-tight">
-                            Create your Winkelo account
+                            Start shopping with less friction.
                         </h1>
                         <p className="mt-4 text-sm leading-6 text-slate-300">
-                            Register once, then shop faster, save your cart,
-                            and check out with less effort.
+                            Register once, then shop faster, save your cart, and
+                            check out with less effort.
+                        </p>
+                        <div className="mt-8 grid gap-3 text-sm font-bold text-slate-200">
+                            <AuthBenefit
+                                icon={<FaShoppingCart />}
+                                text="Save items between visits"
+                            />
+                            <AuthBenefit
+                                icon={<FaTruck />}
+                                text="Follow delivery progress"
+                            />
+                            <AuthBenefit
+                                icon={<FaCheckCircle />}
+                                text="Place orders securely"
+                            />
+                        </div>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                        <p className="text-xs font-black uppercase tracking-wide text-emerald-300">
+                            New here?
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-300">
+                            Create an account once and enjoy a smoother checkout
+                            every time you shop.
                         </p>
                     </div>
-                    <p className="text-xs font-black uppercase tracking-wide text-emerald-300">
-                        Secure shopping account
-                    </p>
                 </section>
 
                 <section className="p-6 sm:p-8 lg:p-10">
@@ -147,6 +186,15 @@ function Signup() {
                 </section>
             </div>
         </main>
+    );
+}
+
+function AuthBenefit({ icon, text }) {
+    return (
+        <div className="flex items-center gap-3 rounded-md border border-white/10 bg-white/5 px-3 py-2">
+            <span className="text-emerald-300">{icon}</span>
+            <span>{text}</span>
+        </div>
     );
 }
 
