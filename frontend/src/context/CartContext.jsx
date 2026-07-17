@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { authFetch, getAccessToken } from "../utils/auth";
+import { getCachedProduct, preloadImage } from "../utils/apiCache";
 
 const CartContext = createContext();
 
@@ -19,6 +20,7 @@ export const CartProvider = ({ children }) => {
     const applyCartItems = (items) => {
         setCartItems(items);
         setTotal(calculateCartTotal(items));
+        items.forEach((item) => preloadImage(item.product_image));
     };
 
     const fetchCart = async () => {
@@ -40,6 +42,7 @@ export const CartProvider = ({ children }) => {
 
     const addToCart = async (productId) => {
         const previousItems = cartItems;
+        const cachedProduct = getCachedProduct(productId);
         const existing = cartItems.find(
             (item) =>
                 item.product === productId || item.product?.id === productId,
@@ -57,6 +60,13 @@ export const CartProvider = ({ children }) => {
                       id: `temp-${productId}`,
                       product: productId,
                       quantity: 1,
+                      product_name: cachedProduct?.name || "Product",
+                      product_price: cachedProduct?.price || "0.00",
+                      product_image: cachedProduct?.image_url || "",
+                      product_active_discount:
+                          cachedProduct?.active_discount || 0,
+                      product_discounted_price:
+                          cachedProduct?.discounted_price || null,
                   },
               ];
 

@@ -9,6 +9,13 @@ import {
     FaShoppingCart,
     FaTruck,
 } from "react-icons/fa";
+import {
+    fetchCachedJson,
+    getCachedProduct,
+    preloadImage,
+    rememberProducts,
+    productCacheKey,
+} from "../utils/apiCache";
 
 function ProductDetails() {
     const { showAlert } = useAlert();
@@ -16,8 +23,8 @@ function ProductDetails() {
     const navigate = useNavigate();
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
-    const [product, setProduct] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [product, setProduct] = useState(() => getCachedProduct(id) || null);
+    const [loading, setLoading] = useState(() => !getCachedProduct(id));
     const [error, setError] = useState(null);
     const [imageFailed, setImageFailed] = useState(false);
 
@@ -25,14 +32,25 @@ function ProductDetails() {
 
     useEffect(() => {
         const controller = new AbortController();
-        setLoading(true);
+        const cachedProduct = getCachedProduct(id);
+        setImageFailed(false);
 
-        fetch(`${BASEURL}/api/product/${id}/`, { signal: controller.signal })
-            .then((res) => {
-                if (!res.ok) throw new Error("Failed to fetch product");
-                return res.json();
-            })
+        if (cachedProduct) {
+            setProduct(cachedProduct);
+            preloadImage(cachedProduct.image_url);
+            setLoading(false);
+        } else {
+            setLoading(true);
+        }
+
+        fetchCachedJson(`${BASEURL}/api/product/${id}/`, {
+            cacheKey: productCacheKey(id),
+            errorMessage: "Failed to fetch product",
+            signal: controller.signal,
+        })
             .then((data) => {
+                rememberProducts([data]);
+                preloadImage(data.image_url);
                 setProduct(data);
                 setLoading(false);
             })

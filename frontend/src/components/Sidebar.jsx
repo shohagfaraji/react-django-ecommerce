@@ -14,6 +14,7 @@ import {
     FaTimes,
     FaTshirt,
 } from "react-icons/fa";
+import { fetchCachedJson, getCachedJson } from "../utils/apiCache";
 
 const sectionIcons = {
     clothing: <FaTshirt />,
@@ -75,16 +76,27 @@ const fallbackCategories = [
     },
 ];
 
+const CATEGORIES_CACHE_KEY = "categories:all";
+
 function Sidebar({ isOpen, onOpen, onClose }) {
-    const [categories, setCategories] = useState(fallbackCategories);
+    const [categories, setCategories] = useState(
+        () => getCachedJson(CATEGORIES_CACHE_KEY) || fallbackCategories,
+    );
     const navigate = useNavigate();
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
     useEffect(() => {
         const controller = new AbortController();
+        const cachedCategories = getCachedJson(CATEGORIES_CACHE_KEY);
 
-        fetch(`${BASEURL}/api/categories/`, { signal: controller.signal })
-            .then((res) => res.json())
+        if (Array.isArray(cachedCategories) && cachedCategories.length) {
+            setCategories(cachedCategories);
+        }
+
+        fetchCachedJson(`${BASEURL}/api/categories/`, {
+            cacheKey: CATEGORIES_CACHE_KEY,
+            signal: controller.signal,
+        })
             .then((data) => {
                 const nextCategories = Array.isArray(data) ? data : [];
                 setCategories(

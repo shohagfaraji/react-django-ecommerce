@@ -83,11 +83,17 @@ function CartItemRow({ item, updateQuantity, removeFromCart, showAlert }) {
 
     return (
         <div className="grid gap-4 border-b border-slate-200 py-5 first:pt-0 last:border-b-0 last:pb-0 sm:grid-cols-[96px_1fr_auto] sm:items-center">
-            <img
-                src={item.product_image}
-                alt={item.product_name}
-                className="h-24 w-24 object-contain"
-            />
+            {item.product_image ? (
+                <img
+                    src={item.product_image}
+                    alt={item.product_name}
+                    className="h-24 w-24 object-contain"
+                />
+            ) : (
+                <div className="flex h-24 w-24 items-center justify-center rounded-md bg-slate-50 text-slate-300">
+                    <FaShoppingCart className="text-2xl" />
+                </div>
+            )}
 
             <div className="min-w-0">
                 <h2 className="text-base font-black leading-snug text-slate-950">
