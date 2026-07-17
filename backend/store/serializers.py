@@ -174,6 +174,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = User
         fields = ['username', 'email', 'password', 'password2']
 
+    def validate_username(self, value):
+        username = value.strip()
+        if not username:
+            raise serializers.ValidationError("Enter a username.")
+        if any(char.isspace() for char in value):
+            raise serializers.ValidationError("Username cannot contain spaces.")
+        if User.objects.filter(username__iexact=username).exists():
+            raise serializers.ValidationError("This username is already taken.")
+        return username
+
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError("Password do not match!")

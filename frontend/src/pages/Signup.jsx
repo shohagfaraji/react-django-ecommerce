@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
     FaCheckCircle,
@@ -19,14 +19,116 @@ function Signup() {
     });
     const [msg, setMsg] = useState("");
     const [loading, setLoading] = useState(false);
+    const [usernameStatus, setUsernameStatus] = useState({
+        state: "idle",
+        message: "",
+    });
     const nav = useNavigate();
 
-    const handleChange = (e) =>
+    const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
+        if (e.target.name === "username") {
+            setUsernameStatus({ state: "idle", message: "" });
+        }
+    };
+
+    const checkUsername = async (usernameValue = form.username, signal) => {
+        const username = usernameValue.trim();
+
+        if (!username) {
+            setUsernameStatus({ state: "idle", message: "" });
+            return true;
+        }
+
+        if (hasUsernameWhitespace(usernameValue)) {
+            setUsernameStatus({
+                state: "invalid",
+                message: "Username cannot contain spaces.",
+            });
+            return false;
+        }
+
+        setUsernameStatus({
+            state: "checking",
+            message: "Checking username...",
+        });
+
+        try {
+            const res = await fetch(
+                `${BASE}/api/register/check-username/?username=${encodeURIComponent(
+                    username,
+                )}`,
+                { signal },
+            );
+            const data = await res.json();
+
+            if (res.ok && data.available) {
+                setUsernameStatus({
+                    state: "available",
+                    message: "Username is available.",
+                });
+                return true;
+            }
+
+            setUsernameStatus({
+                state: "taken",
+                message: data.message || "This username is already taken.",
+            });
+            return false;
+        } catch (err) {
+            if (err.name === "AbortError") return false;
+            console.error(err);
+            setUsernameStatus({
+                state: "idle",
+                message: "Could not check username right now.",
+            });
+            return true;
+        }
+    };
+
+    useEffect(() => {
+        const username = form.username;
+
+        if (!username.trim()) {
+            setUsernameStatus({ state: "idle", message: "" });
+            return undefined;
+        }
+
+        if (hasUsernameWhitespace(username)) {
+            setUsernameStatus({
+                state: "invalid",
+                message: "Username cannot contain spaces.",
+            });
+            return undefined;
+        }
+
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => {
+            checkUsername(username, controller.signal);
+        }, 350);
+
+        return () => {
+            controller.abort();
+            window.clearTimeout(timer);
+        };
+    }, [form.username]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setMsg("");
+
+        if (
+            usernameStatus.state === "taken" ||
+            usernameStatus.state === "invalid"
+        ) {
+            return;
+        }
+
+        const usernameOk =
+            usernameStatus.state === "available" ||
+            (await checkUsername(form.username));
+        if (!usernameOk) return;
+
         setLoading(true);
         try {
             const res = await fetch(`${BASE}/api/register/`, {
@@ -39,12 +141,7 @@ function Signup() {
                 setMsg("Account created. Redirecting to login...");
                 setTimeout(() => nav("/login"), 900);
             } else {
-                setMsg(
-                    data.username ||
-                        data.password ||
-                        data.password2 ||
-                        JSON.stringify(data),
-                );
+                setMsg(formatSignupError(data));
             }
         } catch (err) {
             console.error(err);
@@ -126,6 +223,19 @@ function Signup() {
                             value={form.username}
                             placeholder="Username"
                             onChange={handleChange}
+                            error={
+                                usernameStatus.state === "taken" ||
+                                usernameStatus.state === "invalid"
+                                    ? usernameStatus.message
+                                    : ""
+                            }
+                            help={
+                                usernameStatus.state !== "taken" &&
+                                usernameStatus.state !== "invalid"
+                                    ? usernameStatus.message
+                                    : ""
+                            }
+                            tone={usernameStatus.state}
                         />
                         <Field
                             icon={<FaEnvelope />}
@@ -167,10 +277,19 @@ function Signup() {
 
                         <button
                             className="h-12 w-full rounded-md bg-slate-950 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-                            disabled={loading}
+                            disabled={
+                                loading ||
+                                usernameStatus.state === "checking" ||
+                                usernameStatus.state === "taken" ||
+                                usernameStatus.state === "invalid"
+                            }
                             type="submit"
                         >
-                            {loading ? "Creating account..." : "Create account"}
+                            {loading
+                                ? "Creating account..."
+                                : usernameStatus.state === "checking"
+                                  ? "Checking username..."
+                                  : "Create account"}
                         </button>
                     </form>
 
@@ -198,32 +317,82 @@ function AuthBenefit({ icon, text }) {
     );
 }
 
+function hasUsernameWhitespace(value) {
+    return /\s/.test(value);
+}
+
+function formatSignupError(error) {
+    if (!error) return "Signup failed. Please try again.";
+    if (typeof error === "string") return error;
+    if (Array.isArray(error)) return error.map(formatSignupError).join(" ");
+
+    if (typeof error === "object") {
+        return Object.entries(error)
+            .map(([field, value]) => {
+                const label =
+                    field === "password2"
+                        ? "Confirm password"
+                        : field.charAt(0).toUpperCase() + field.slice(1);
+                return `${label}: ${formatSignupError(value)}`;
+            })
+            .join(" ");
+    }
+
+    return String(error);
+}
+
 function Field({
     icon,
     name,
     value,
     onChange,
+    onBlur,
     placeholder,
     type = "text",
     required = true,
+    error = "",
+    help = "",
+    tone = "idle",
 }) {
+    const helperClass =
+        tone === "available"
+            ? "text-emerald-700"
+            : tone === "checking"
+              ? "text-slate-500"
+              : "text-slate-500";
+
     return (
         <label className="block">
             <span className="mb-2 block text-sm font-black text-slate-700">
                 {placeholder}
             </span>
-            <div className="flex h-12 items-center rounded-md border border-slate-300 bg-white px-3 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100">
+            <div
+                className={`flex h-12 items-center rounded-md border bg-white px-3 focus-within:ring-2 ${
+                    error
+                        ? "border-rose-300 focus-within:border-rose-500 focus-within:ring-rose-100"
+                        : "border-slate-300 focus-within:border-emerald-500 focus-within:ring-emerald-100"
+                }`}
+            >
                 <span className="text-slate-400">{icon}</span>
                 <input
                     name={name}
                     type={type}
                     onChange={onChange}
+                    onBlur={onBlur}
                     value={value}
                     placeholder={placeholder}
                     required={required}
                     className="h-full min-w-0 flex-1 px-3 text-sm outline-none"
                 />
             </div>
+            {error && (
+                <p className="mt-2 text-sm font-bold text-rose-600">{error}</p>
+            )}
+            {!error && help && (
+                <p className={`mt-2 text-sm font-bold ${helperClass}`}>
+                    {help}
+                </p>
+            )}
         </label>
     );
 }

@@ -72,6 +72,42 @@ class AuthTests(APITestCase):
         self.assertFalse(res.data["success"])
         self.assertEqual(res.data["detail"], "Invalid username or password.")
 
+    def test_check_username_available(self):
+        res = self.client.get("/api/register/check-username/?username=newuser")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertTrue(res.data["available"])
+
+    def test_check_username_taken_is_case_insensitive(self):
+        res = self.client.get("/api/register/check-username/?username=LoginUser")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertFalse(res.data["available"])
+        self.assertEqual(res.data["message"], "This username is already taken.")
+
+    def test_check_username_requires_username(self):
+        res = self.client.get("/api/register/check-username/")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(res.data["available"])
+
+    def test_check_username_rejects_spaces(self):
+        res = self.client.get("/api/register/check-username/?username=new%20user")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(res.data["available"])
+        self.assertEqual(res.data["message"], "Username cannot contain spaces.")
+
+    def test_register_rejects_username_with_spaces(self):
+        res = self.client.post(
+            "/api/register/",
+            {
+                "username": "new user",
+                "email": "new@example.com",
+                "password": "pass12345",
+                "password2": "pass12345",
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("username", res.data)
+
 
 class CartTests(APITestCase):
     """Tests for /api/cart/add/ and /api/cart/update/."""
