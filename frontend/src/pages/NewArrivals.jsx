@@ -1,25 +1,43 @@
 import { useEffect, useState } from "react";
 import ProductCard from "../components/ProductCard.jsx";
 import { FaFire } from "react-icons/fa";
+import {
+    fetchCachedJson,
+    getCachedJson,
+    preloadProductImages,
+    rememberProducts,
+} from "../utils/apiCache";
+
+const CACHE_KEY = "products:new-arrivals";
 
 function NewArrivals() {
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [products, setProducts] = useState(
+        () => getCachedJson(CACHE_KEY) || [],
+    );
+    const [loading, setLoading] = useState(() => !getCachedJson(CACHE_KEY));
     const [error, setError] = useState(null);
 
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
     useEffect(() => {
         const controller = new AbortController();
+        const cachedProducts = getCachedJson(CACHE_KEY);
 
-        fetch(`${BASEURL}/api/products/new-arrivals/`, {
+        if (cachedProducts) {
+            setProducts(cachedProducts);
+            rememberProducts(cachedProducts);
+            preloadProductImages(cachedProducts);
+            setLoading(false);
+        }
+
+        fetchCachedJson(`${BASEURL}/api/products/new-arrivals/`, {
+            cacheKey: CACHE_KEY,
+            errorMessage: "Failed to fetch products",
             signal: controller.signal,
         })
-            .then((res) => {
-                if (!res.ok) throw new Error("Failed to fetch products");
-                return res.json();
-            })
             .then((data) => {
+                rememberProducts(data);
+                preloadProductImages(data);
                 setProducts(data);
                 setLoading(false);
             })
@@ -31,7 +49,7 @@ function NewArrivals() {
             });
 
         return () => controller.abort();
-    }, []);
+    }, [BASEURL]);
 
     if (error)
         return <div className="pt-24 text-center text-red-500">{error}</div>;

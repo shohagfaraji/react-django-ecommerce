@@ -3,6 +3,13 @@ import { Link } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { useAlert } from "../context/AlertContext";
 import { FaBalanceScale, FaShoppingCart, FaTimes } from "react-icons/fa";
+import {
+    fetchCachedJson,
+    getCachedProduct,
+    preloadImage,
+    rememberProducts,
+    productCacheKey,
+} from "../utils/apiCache";
 
 function CompareProducts() {
     const { showAlert } = useAlert();
@@ -18,12 +25,22 @@ function CompareProducts() {
             return;
         }
 
+        setProducts(
+            stored.map((product) => getCachedProduct(product.id) || product),
+        );
+        setLoading(false);
+
         Promise.all(
             stored.map((p) =>
-                fetch(`${BASEURL}/api/product/${p.id}/`).then((r) => r.json()),
+                fetchCachedJson(`${BASEURL}/api/product/${p.id}/`, {
+                    cacheKey: productCacheKey(p.id),
+                    errorMessage: "Failed to fetch product",
+                }),
             ),
         )
             .then((fresh) => {
+                rememberProducts(fresh);
+                fresh.forEach((product) => preloadImage(product.image_url));
                 setProducts(fresh);
                 setLoading(false);
             })
@@ -124,16 +141,22 @@ function CompareCard({ product, onAddToCart }) {
     const isOnSale = product.active_discount > 0 && product.discounted_price;
 
     return (
-        <section className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="rounded-lg bg-slate-50 p-4">
-                <img
-                    src={product.image_url}
-                    alt={product.name}
-                    className="h-56 w-full object-contain"
-                />
+        <section className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex aspect-square items-center justify-center bg-slate-50">
+                {product.image_url ? (
+                    <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="h-full w-full object-contain"
+                    />
+                ) : (
+                    <div className="flex h-full w-full items-center justify-center text-slate-300">
+                        <FaShoppingCart className="text-4xl" />
+                    </div>
+                )}
             </div>
 
-            <div className="mt-5 flex-1">
+            <div className="flex flex-1 flex-col p-5">
                 <p className="text-xs font-black uppercase tracking-wide text-slate-400">
                     {product.category?.name || "Product"}
                 </p>
@@ -143,36 +166,39 @@ function CompareCard({ product, onAddToCart }) {
                 <p className="mt-3 line-clamp-4 text-sm leading-6 text-slate-500">
                     {product.description || "No description added yet."}
                 </p>
-            </div>
 
-            <div className="mt-5 rounded-lg border border-slate-200">
-                <CompareRow label="Category" value={product.category?.name} />
-                <CompareRow
-                    label="Offer"
-                    value={
-                        isOnSale
-                            ? `${product.active_discount}% off`
-                            : "No active offer"
-                    }
-                />
-                <CompareRow
-                    label="Price"
-                    value={
-                        isOnSale
-                            ? `$${product.discounted_price} now`
-                            : `$${product.price}`
-                    }
-                />
-            </div>
+                <div className="mt-5 rounded-lg border border-slate-200">
+                    <CompareRow
+                        label="Category"
+                        value={product.category?.name}
+                    />
+                    <CompareRow
+                        label="Offer"
+                        value={
+                            isOnSale
+                                ? `${product.active_discount}% off`
+                                : "No active offer"
+                        }
+                    />
+                    <CompareRow
+                        label="Price"
+                        value={
+                            isOnSale
+                                ? `$${product.discounted_price} now`
+                                : `$${product.price}`
+                        }
+                    />
+                </div>
 
-            <button
-                onClick={() => onAddToCart(product.id)}
-                className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-slate-950 px-5 text-sm font-black text-white transition hover:bg-emerald-700"
-                type="button"
-            >
-                <FaShoppingCart />
-                Add to cart
-            </button>
+                <button
+                    onClick={() => onAddToCart(product.id)}
+                    className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-slate-950 px-5 text-sm font-black text-white transition hover:bg-emerald-700"
+                    type="button"
+                >
+                    <FaShoppingCart />
+                    Add to cart
+                </button>
+            </div>
         </section>
     );
 }

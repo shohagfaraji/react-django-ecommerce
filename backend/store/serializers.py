@@ -139,7 +139,7 @@ class CartItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_product_image(self, obj):
-        return resolve_image_url(obj.product.image, self.context.get('request'), width=320)
+        return resolve_image_url(obj.product.image, self.context.get('request'), width=640)
 
     def get_product_active_discount(self, obj):
         p = obj.product

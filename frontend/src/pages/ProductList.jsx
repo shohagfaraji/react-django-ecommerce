@@ -12,6 +12,12 @@ import {
     FaTruck,
 } from "react-icons/fa";
 import ProductCard from "../components/ProductCard.jsx";
+import {
+    fetchCachedJson,
+    getCachedJson,
+    preloadProductImages,
+    rememberProducts,
+} from "../utils/apiCache";
 
 const loadedHeroImages = new Set();
 
@@ -21,10 +27,22 @@ function ProductList() {
     const search = searchParams.get("search");
     const isFiltered = !!(category || search);
 
-    const [products, setProducts] = useState([]);
-    const [homeData, setHomeData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [homeLoading, setHomeLoading] = useState(true);
+    const [products, setProducts] = useState(
+        () =>
+            getCachedJson(
+                buildProductsCacheKey(category, search, isFiltered),
+            ) || [],
+    );
+    const [homeData, setHomeData] = useState(
+        () => getCachedJson("homepage") || null,
+    );
+    const [loading, setLoading] = useState(
+        () =>
+            !getCachedJson(buildProductsCacheKey(category, search, isFiltered)),
+    );
+    const [homeLoading, setHomeLoading] = useState(
+        () => !getCachedJson("homepage"),
+    );
     const [error, setError] = useState(null);
 
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
@@ -32,15 +50,24 @@ function ProductList() {
     useEffect(() => {
         if (isFiltered) return undefined;
         const controller = new AbortController();
+        const cachedHome = getCachedJson("homepage");
 
-        setHomeLoading(true);
-        fetch(`${BASEURL}/api/homepage/`, { signal: controller.signal })
-            .then((res) => {
-                if (!res.ok) throw new Error("Failed to fetch homepage");
-                return res.json();
-            })
+        if (cachedHome) {
+            setHomeData(cachedHome);
+            setHomeLoading(false);
+            rememberHomeProducts(cachedHome);
+        } else {
+            setHomeLoading(true);
+        }
+
+        fetchCachedJson(`${BASEURL}/api/homepage/`, {
+            cacheKey: "homepage",
+            errorMessage: "Failed to fetch homepage",
+            signal: controller.signal,
+        })
             .then((data) => {
                 setHomeData(data);
+                rememberHomeProducts(data);
                 setHomeLoading(false);
             })
             .catch((err) => {
@@ -60,17 +87,27 @@ function ProductList() {
         if (category) params.set("category", category);
         if (search) params.set("search", search);
 
-        setLoading(true);
+        const cacheKey = `products:${params.toString()}`;
+        const cachedProducts = getCachedJson(cacheKey);
+
+        if (cachedProducts) {
+            setProducts(cachedProducts);
+            rememberProducts(cachedProducts);
+            preloadProductImages(cachedProducts);
+            setLoading(false);
+        } else {
+            setLoading(true);
+        }
         setError(null);
 
-        fetch(`${BASEURL}/api/products/?${params.toString()}`, {
+        fetchCachedJson(`${BASEURL}/api/products/?${params.toString()}`, {
+            cacheKey,
+            errorMessage: "Failed to fetch products",
             signal: controller.signal,
         })
-            .then((res) => {
-                if (!res.ok) throw new Error("Failed to fetch products");
-                return res.json();
-            })
             .then((data) => {
+                rememberProducts(data);
+                preloadProductImages(data);
                 setProducts(data);
                 setLoading(false);
             })
@@ -180,6 +217,30 @@ function ProductList() {
             </div>
         </main>
     );
+}
+
+function buildProductsCacheKey(category, search, isFiltered) {
+    const params = new URLSearchParams({ limit: isFiltered ? "40" : "12" });
+
+    if (category) params.set("category", category);
+    if (search) params.set("search", search);
+
+    return `products:${params.toString()}`;
+}
+
+function rememberHomeProducts(homeData) {
+    const sectionProducts =
+        homeData?.category_sections?.flatMap(
+            (section) => section.products || [],
+        ) || [];
+    const products = [
+        ...(homeData?.offer_products || []),
+        ...(homeData?.hot_products || []),
+        ...sectionProducts,
+    ];
+
+    rememberProducts(products);
+    preloadProductImages(products, 24);
 }
 
 function HomeSlider({ banners, fallbackProducts, loading }) {
