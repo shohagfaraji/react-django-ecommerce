@@ -365,6 +365,31 @@ def register(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def check_username(request):
+    raw_username = request.GET.get('username', '')
+    username = raw_username.strip()
+
+    if not username:
+        return Response({
+            "available": False,
+            "message": "Enter a username.",
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    if any(char.isspace() for char in raw_username):
+        return Response({
+            "available": False,
+            "message": "Username cannot contain spaces.",
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    is_taken = User.objects.filter(username__iexact=username).exists()
+    return Response({
+        "available": not is_taken,
+        "message": "This username is already taken." if is_taken else "Username is available.",
+    })
+
+
 @api_view(['POST'])
 def bootstrap_superuser(request):
     if request.data.get('setup_key') != os.getenv('SUPERUSER_SETUP_KEY'):
