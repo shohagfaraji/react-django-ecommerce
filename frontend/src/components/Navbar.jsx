@@ -58,7 +58,7 @@ function Navbar({ onMenuToggle }) {
                 showNav ? "translate-y-0" : "-translate-y-full"
             }`}
         >
-            <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
+            <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-3 max-[360px]:gap-2 max-[360px]:px-3 sm:px-6 lg:px-8">
                 <button
                     className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-700 transition hover:bg-slate-50 md:hidden"
                     onClick={onMenuToggle}
@@ -70,14 +70,14 @@ function Navbar({ onMenuToggle }) {
 
                 <Link
                     to="/"
-                    className="flex shrink-0 items-center gap-2 text-xl font-black tracking-tight text-slate-950"
+                    className="flex shrink-0 items-center gap-2 text-xl font-black tracking-tight text-slate-950 max-[360px]:text-lg"
                 >
                     <img
                         src="/favicon-96x96.png"
                         alt=""
-                        className="h-10 w-10 object-contain"
+                        className="h-10 w-10 object-contain max-[360px]:h-8 max-[360px]:w-8"
                     />
-                    <span>Winkelo</span>
+                    <span className="max-[300px]:sr-only">Winkelo</span>
                 </Link>
 
                 <form
@@ -86,7 +86,10 @@ function Navbar({ onMenuToggle }) {
                 >
                     <div className="flex h-11 w-full overflow-hidden rounded-md border border-slate-300 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100">
                         <input
+                            id="desktop-product-search"
+                            name="search"
                             type="text"
+                            autoComplete="off"
                             placeholder="Search fashion, electronics, toys, plants..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
@@ -102,7 +105,7 @@ function Navbar({ onMenuToggle }) {
                     </div>
                 </form>
 
-                <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+                <div className="ml-auto flex min-w-0 shrink items-center gap-2 sm:gap-3">
                     <Link
                         to="/cart"
                         className="relative flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-800 transition hover:bg-slate-50"
@@ -124,10 +127,10 @@ function Navbar({ onMenuToggle }) {
                             Login
                         </Link>
                     ) : (
-                        <div className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                        <div className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 px-3 py-2 max-[360px]:px-2">
                             <FaUser className="hidden text-slate-500 sm:block" />
                             <div className="leading-tight">
-                                <p className="max-w-[92px] truncate text-sm font-black text-slate-900">
+                                <p className="max-w-[92px] truncate text-sm font-black text-slate-900 max-[360px]:max-w-[58px] max-[360px]:text-xs">
                                     {username
                                         ? username.charAt(0).toUpperCase() +
                                           username.slice(1)
@@ -135,7 +138,7 @@ function Navbar({ onMenuToggle }) {
                                 </p>
                                 <button
                                     onClick={handleLogout}
-                                    className="text-xs font-bold text-slate-500 transition hover:text-rose-600"
+                                    className="text-xs font-bold text-slate-500 transition hover:text-rose-600 max-[360px]:text-[10px]"
                                     type="button"
                                 >
                                     Logout
@@ -146,10 +149,13 @@ function Navbar({ onMenuToggle }) {
                 </div>
             </div>
 
-            <div className="px-4 pb-3 md:hidden">
+            <div className="px-4 pb-3 max-[360px]:px-3 md:hidden">
                 <form onSubmit={handleSearch} className="flex h-10">
                     <input
+                        id="mobile-product-search"
+                        name="search"
                         type="text"
+                        autoComplete="off"
                         placeholder="Search products..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
