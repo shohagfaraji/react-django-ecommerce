@@ -15,7 +15,7 @@ function CartPage() {
     const { cartItems, total, removeFromCart, updateQuantity } = useCart();
 
     return (
-        <main className="min-h-screen bg-[#f6f7f9] px-4 pt-36 pb-12 md:pt-28">
+        <main className="min-h-screen bg-[#f6f7f9] px-4 pt-36 pb-12 max-[360px]:px-2 md:pt-28">
             <div className="mx-auto max-w-6xl">
                 <div className="mb-6">
                     <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
@@ -30,8 +30,8 @@ function CartPage() {
                 {cartItems.length === 0 ? (
                     <EmptyCart />
                 ) : (
-                    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-                        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+                        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm max-[360px]:p-3 sm:p-5">
                             {cartItems.map((item) => (
                                 <CartItemRow
                                     key={item.id}
@@ -80,89 +80,123 @@ function EmptyCart() {
 function CartItemRow({ item, updateQuantity, removeFromCart, showAlert }) {
     const unitPrice = item.product_discounted_price || item.product_price;
     const lineTotal = Number(unitPrice || 0) * item.quantity;
+    const productId = item.product || item.product_id;
+    const productUrl = `/product/${productId}`;
+    const handleRemove = () => {
+        removeFromCart(item.id);
+        showAlert("Removed from cart", "info");
+    };
 
     return (
-        <div className="grid gap-4 border-b border-slate-200 py-5 first:pt-0 last:border-b-0 last:pb-0 sm:grid-cols-[96px_1fr_auto] sm:items-center">
-            {item.product_image ? (
-                <img
-                    src={item.product_image}
-                    alt={item.product_name}
-                    className="h-24 w-24 object-contain"
-                />
-            ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-md bg-slate-50 text-slate-300">
-                    <FaShoppingCart className="text-2xl" />
-                </div>
-            )}
-
-            <div className="min-w-0">
-                <h2 className="text-base font-black leading-snug text-slate-950">
-                    {item.product_name}
-                </h2>
-
-                {item.product_active_discount > 0 &&
-                item.product_discounted_price ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="rounded bg-rose-600 px-2 py-1 text-[10px] font-black text-white">
-                            -{item.product_active_discount}%
-                        </span>
-                        <span className="text-sm font-bold text-slate-400 line-through">
-                            ${item.product_price}
-                        </span>
-                        <span className="text-sm font-black text-emerald-700">
-                            ${item.product_discounted_price}
-                        </span>
-                    </div>
+        <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-3 border-b border-slate-200 py-5 first:pt-0 last:border-b-0 last:pb-0 max-[360px]:grid-cols-[80px_minmax(0,1fr)] max-[360px]:gap-x-2 lg:grid-cols-[104px_minmax(0,1fr)_auto] lg:items-center lg:gap-4">
+            <Link
+                to={productUrl}
+                className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-lg bg-slate-50 max-[360px]:h-20 max-[360px]:w-20"
+                aria-label={`View details for ${item.product_name}`}
+            >
+                {item.product_image ? (
+                    <img
+                        src={item.product_image}
+                        alt={item.product_name}
+                        className="h-full w-full object-contain"
+                    />
                 ) : (
-                    <p className="mt-2 text-sm font-black text-emerald-700">
-                        ${item.product_price}
-                    </p>
+                    <FaShoppingCart className="text-2xl text-slate-300" />
                 )}
+            </Link>
 
-                <p className="mt-2 text-sm font-bold text-slate-500">
-                    Line total: ${lineTotal.toFixed(2)}
-                </p>
+            <div className="min-w-0 self-start lg:self-center">
+                <Link to={productUrl} className="block min-w-0">
+                    <h2 className="text-base font-black leading-snug text-slate-950 transition hover:text-emerald-700">
+                        {item.product_name}
+                    </h2>
+                </Link>
+
+                <div className="mt-2">
+                    {item.product_active_discount > 0 &&
+                    item.product_discounted_price ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded bg-rose-600 px-2 py-1 text-[10px] font-black text-white">
+                                -{item.product_active_discount}%
+                            </span>
+                            <span className="text-sm font-bold text-slate-400 line-through">
+                                ${item.product_price}
+                            </span>
+                            <span className="text-sm font-black text-emerald-700">
+                                ${item.product_discounted_price}
+                            </span>
+                        </div>
+                    ) : (
+                        <p className="text-sm font-black text-emerald-700">
+                            ${item.product_price}
+                        </p>
+                    )}
+
+                    <p className="mt-2 text-sm font-bold text-slate-500">
+                        Line total: ${lineTotal.toFixed(2)}
+                    </p>
+                </div>
             </div>
 
-            <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
-                <div className="flex items-center rounded-md border border-slate-200 bg-slate-50 p-1">
-                    <button
-                        className="flex h-8 w-8 items-center justify-center rounded text-slate-600 transition hover:bg-white"
-                        onClick={() =>
-                            updateQuantity(item.id, item.quantity - 1)
-                        }
-                        type="button"
-                        aria-label="Decrease quantity"
-                    >
-                        <FaMinus className="text-xs" />
-                    </button>
-                    <span className="w-9 text-center text-sm font-black text-slate-900">
-                        {item.quantity}
+            <div className="col-span-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 max-[360px]:gap-2 lg:hidden">
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-wide text-slate-400">
+                        Qty
                     </span>
-                    <button
-                        className="flex h-8 w-8 items-center justify-center rounded text-slate-600 transition hover:bg-white"
-                        onClick={() =>
-                            updateQuantity(item.id, item.quantity + 1)
-                        }
-                        type="button"
-                        aria-label="Increase quantity"
-                    >
-                        <FaPlus className="text-xs" />
-                    </button>
+                    <QuantityControl
+                        item={item}
+                        updateQuantity={updateQuantity}
+                    />
                 </div>
 
                 <button
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-black text-rose-600 transition hover:bg-rose-50"
-                    onClick={() => {
-                        removeFromCart(item.id);
-                        showAlert("Removed from cart", "info");
-                    }}
+                    className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-black text-rose-600 transition hover:bg-rose-50 max-[360px]:w-full"
+                    onClick={handleRemove}
                     type="button"
                 >
                     <FaTrashAlt />
                     Remove
                 </button>
             </div>
+
+            <div className="hidden items-end gap-4 lg:flex lg:flex-col">
+                <QuantityControl item={item} updateQuantity={updateQuantity} />
+
+                <button
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-black text-rose-600 transition hover:bg-rose-50"
+                    onClick={handleRemove}
+                    type="button"
+                >
+                    <FaTrashAlt />
+                    Remove
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function QuantityControl({ item, updateQuantity }) {
+    return (
+        <div className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 p-1">
+            <button
+                className="flex h-8 w-8 items-center justify-center rounded text-slate-600 transition hover:bg-white"
+                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                type="button"
+                aria-label="Decrease quantity"
+            >
+                <FaMinus className="text-xs" />
+            </button>
+            <span className="w-9 text-center text-sm font-black text-slate-900">
+                {item.quantity}
+            </span>
+            <button
+                className="flex h-8 w-8 items-center justify-center rounded text-slate-600 transition hover:bg-white"
+                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                type="button"
+                aria-label="Increase quantity"
+            >
+                <FaPlus className="text-xs" />
+            </button>
         </div>
     );
 }
