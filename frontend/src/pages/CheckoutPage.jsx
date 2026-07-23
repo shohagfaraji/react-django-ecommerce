@@ -44,7 +44,7 @@ function CheckoutPage() {
                     phone: current.phone || profile.phone || "",
                 }));
             } catch {
-                // Checkout remains usable if saved profile details cannot load.
+                return;
             }
         };
 

@@ -19,7 +19,6 @@ export const AlertProvider = ({ children }) => {
         <AlertContext.Provider value={{ showAlert }}>
             {children}
 
-            {/* Alert Container */}
             <div className="fixed top-[80px] left-[80px] right-4 z-50 flex justify-end pointer-events-none">
                 {alert && (
                     <div
@@ -38,12 +37,10 @@ export const AlertProvider = ({ children }) => {
                         }
                     `}
                     >
-                        {/* Message */}
                         <p className="text-sm text-gray-800 flex-1">
                             {alert.message}
                         </p>
 
-                        {/* Close button */}
                         <button
                             onClick={() => setAlert(null)}
                             className="text-gray-400 hover:text-gray-700 text-lg font-bold"

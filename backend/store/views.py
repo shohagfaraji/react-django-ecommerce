@@ -2,11 +2,11 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
-from .models import Product, Category, Cart, CartItem, Order, OrderItem, HeroBanner, UserProfile
-from .serializers import ProductSerializer, CategorySerializer, CategorySummarySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, HeroBannerSerializer, UserProfileSerializer, OrderSerializer
+from .models import Product, Category, Cart, CartItem, Order, OrderItem, HeroBanner, UserProfile, Review, ReviewImage
+from .serializers import ProductSerializer, CategorySerializer, CategorySummarySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, HeroBannerSerializer, UserProfileSerializer, OrderSerializer, ReviewSerializer
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Prefetch, Q
+from django.db.models import Avg, Count, Prefetch, Q
 from django.core.cache import cache
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -18,7 +18,7 @@ import os
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
-from .cache_utils import store_cache_key
+from .cache_utils import bump_store_cache_version, store_cache_key
 
 
 def cached_api_data(key, factory, timeout=300):
@@ -28,6 +28,13 @@ def cached_api_data(key, factory, timeout=300):
         data = factory()
         cache.set(versioned_key, data, timeout)
     return data
+
+
+def with_ratings(queryset):
+    return queryset.annotate(
+        average_rating=Avg('reviews__rating'),
+        review_count=Count('reviews', distinct=True),
+    )
 
 
 @api_view(['POST'])
@@ -76,10 +83,9 @@ def get_products(request):
     category_slug = request.GET.get('category')
     section = request.GET.get('section')
     search_query = request.GET.get('search')
-    limit = request.GET.get('limit')  # NEW: optional limit param
+    limit = request.GET.get('limit')
 
-    # select_related avoids N+1 on category FK
-    products = Product.objects.select_related('category').order_by('-created_at')
+    products = with_ratings(Product.objects.select_related('category')).order_by('-created_at')
 
     if category_slug:
         category = Category.objects.filter(slug__iexact=category_slug).first()
@@ -116,7 +122,9 @@ def get_products(request):
 @api_view(['GET'])
 def get_product(request, pk):
     try:
-        product = Product.objects.select_related('category', 'category__parent').get(id=pk)
+        product = with_ratings(
+            Product.objects.select_related('category', 'category__parent')
+        ).get(id=pk)
         serializer = ProductSerializer(product, context={'request': request})
         return Response(serializer.data)
     except Product.DoesNotExist:
@@ -138,7 +146,6 @@ def get_categories(request):
 @permission_classes([IsAuthenticated])
 def get_cart(request):
     cart, created = Cart.objects.get_or_create(user=request.user)
-    # select_related + prefetch_related avoids N+1 on items -> product
     cart_with_items = Cart.objects.prefetch_related('items__product').get(id=cart.id)
     serializer = CartSerializer(cart_with_items, context={'request': request})
     return Response(serializer.data)
@@ -163,7 +170,6 @@ def add_to_cart(request):
         item.quantity += 1
         item.save()
 
-    # Return only the count — frontend updates optimistically, no full refetch needed
     total_count = CartItem.objects.filter(cart=cart).values_list('quantity', flat=True)
     count = sum(total_count)
     return Response({'message': 'Product added to cart', 'cart_count': count})
@@ -337,11 +343,14 @@ def check_current_password(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_orders(request):
-    orders = (
+    orders = list(
         Order.objects.filter(user=request.user)
-        .prefetch_related('items__product')
-        .order_by('-created_at')
+        .prefetch_related('items__product', 'items__review__user', 'items__review__images')
+        .order_by('-created_at', '-id')
     )
+    order_count = len(orders)
+    for index, order in enumerate(orders):
+        order.customer_order_number = order_count - index
     return Response(
         OrderSerializer(orders, many=True, context={'request': request}).data
     )
@@ -352,12 +361,155 @@ def user_orders(request):
 def user_order_detail(request, pk):
     order = (
         Order.objects.filter(user=request.user, pk=pk)
-        .prefetch_related('items__product')
+        .prefetch_related('items__product', 'items__review__user', 'items__review__images')
         .first()
     )
     if not order:
         return Response({'detail': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+    order.customer_order_number = Order.objects.filter(
+        user=request.user,
+    ).filter(
+        Q(created_at__lt=order.created_at)
+        | Q(created_at=order.created_at, id__lte=order.id)
+    ).count()
     return Response(OrderSerializer(order, context={'request': request}).data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def product_reviews(request, pk):
+    if not Product.objects.filter(pk=pk).exists():
+        return Response({'detail': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+    reviews = Review.objects.filter(product_id=pk).select_related('user').prefetch_related('images')
+    return Response(ReviewSerializer(reviews, many=True, context={'request': request}).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_review(request):
+    try:
+        order_item_id = int(request.data.get('order_item'))
+        rating = int(request.data.get('rating'))
+    except (TypeError, ValueError):
+        return Response({'detail': 'A valid order item and rating are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if rating not in range(1, 6):
+        return Response({'rating': ['Rating must be between 1 and 5.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    comment = str(request.data.get('comment', '')).strip()
+    if len(comment) > 2000:
+        return Response({'comment': ['Comment must be 2000 characters or fewer.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    order_item = OrderItem.objects.select_related('order', 'product').filter(
+        pk=order_item_id,
+        order__user=request.user,
+    ).first()
+    if not order_item:
+        return Response({'detail': 'This product was not purchased by you.'}, status=status.HTTP_403_FORBIDDEN)
+    if order_item.order.status != Order.STATUS_DELIVERED:
+        return Response({'detail': 'You can review this product after it is delivered.'}, status=status.HTTP_403_FORBIDDEN)
+    if Review.objects.filter(order_item=order_item).exists():
+        return Response({'detail': 'This delivered item has already been reviewed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    images = request.FILES.getlist('images')
+    if len(images) > 5:
+        return Response({'images': ['You can attach up to 5 images.']}, status=status.HTTP_400_BAD_REQUEST)
+    for image in images:
+        if image.size > 5 * 1024 * 1024 or not getattr(image, 'content_type', '').startswith('image/'):
+            return Response({'images': ['Each attachment must be an image no larger than 5 MB.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        review = Review.objects.create(
+            order_item=order_item,
+            product=order_item.product,
+            user=request.user,
+            rating=rating,
+            comment=comment,
+        )
+        for image in images:
+            safe_name = f"{__import__('uuid').uuid4().hex}-{os.path.basename(image.name)}"
+            if settings.USE_CLOUDINARY_MEDIA:
+                uploaded = cloudinary.uploader.upload(
+                    image, folder=f"reviews/{review.id}", resource_type='image'
+                )
+                image_name = uploaded['public_id']
+            else:
+                storage = FileSystemStorage(location=settings.MEDIA_ROOT)
+                image_name = storage.save(f"reviews/{review.id}/{safe_name}", image)
+            ReviewImage.objects.create(review=review, image=image_name)
+
+    bump_store_cache_version()
+    return Response(
+        ReviewSerializer(review, context={'request': request}).data,
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def review_detail(request, pk):
+    review = Review.objects.filter(pk=pk, user=request.user).prefetch_related('images').first()
+    if not review:
+        return Response({'detail': 'Review not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'DELETE':
+        image_names = [str(image.image) for image in review.images.all()]
+        with transaction.atomic():
+            review.delete()
+            transaction.on_commit(
+                lambda: [_delete_review_image(name) for name in image_names]
+            )
+        bump_store_cache_version()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    try:
+        rating = int(request.data.get('rating', review.rating))
+    except (TypeError, ValueError):
+        return Response({'rating': ['Rating must be a number between 1 and 5.']}, status=status.HTTP_400_BAD_REQUEST)
+    if rating not in range(1, 6):
+        return Response({'rating': ['Rating must be between 1 and 5.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    comment = str(request.data.get('comment', review.comment)).strip()
+    if len(comment) > 2000:
+        return Response({'comment': ['Comment must be 2000 characters or fewer.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    images = request.FILES.getlist('images')
+    if review.images.count() + len(images) > 5:
+        return Response({'images': ['A review can have up to 5 images in total.']}, status=status.HTTP_400_BAD_REQUEST)
+    for image in images:
+        if image.size > 5 * 1024 * 1024 or not getattr(image, 'content_type', '').startswith('image/'):
+            return Response({'images': ['Each attachment must be an image no larger than 5 MB.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        review.rating = rating
+        review.comment = comment
+        review.save(update_fields=['rating', 'comment'])
+        for image in images:
+            safe_name = f"{__import__('uuid').uuid4().hex}-{os.path.basename(image.name)}"
+            if settings.USE_CLOUDINARY_MEDIA:
+                uploaded = cloudinary.uploader.upload(
+                    image, folder=f"reviews/{review.id}", resource_type='image'
+                )
+                image_name = uploaded['public_id']
+            else:
+                storage = FileSystemStorage(location=settings.MEDIA_ROOT)
+                image_name = storage.save(f"reviews/{review.id}/{safe_name}", image)
+            ReviewImage.objects.create(review=review, image=image_name)
+
+    bump_store_cache_version()
+    return Response(ReviewSerializer(review, context={'request': request}).data)
+
+
+def _delete_review_image(image_name):
+    try:
+        if settings.USE_CLOUDINARY_MEDIA:
+            cloudinary.uploader.destroy(image_name, resource_type='image')
+        else:
+            storage = FileSystemStorage(location=settings.MEDIA_ROOT)
+            if storage.exists(image_name):
+                storage.delete(image_name)
+    except Exception:
+        pass
 
 
 @api_view(['DELETE'])
@@ -397,13 +549,14 @@ def _delete_profile_picture(picture_name):
             if storage.exists(picture_name):
                 storage.delete(picture_name)
     except Exception:
-        # The account deletion itself must not be reversed by a remote cleanup failure.
         pass
 
 @api_view(['GET'])
 def get_weekly_top_selling(request):
     """Returns products marked as Weekly Top Selling by admin."""
-    products = Product.objects.filter(is_weekly_top=True).select_related('category').order_by('-created_at')
+    products = with_ratings(
+        Product.objects.filter(is_weekly_top=True).select_related('category')
+    ).order_by('-created_at')
     data = cached_api_data(
         "products:weekly-top-selling",
         lambda: ProductSerializer(products, many=True, context={'request': request}).data,
@@ -415,7 +568,7 @@ def get_weekly_top_selling(request):
 @api_view(['GET'])
 def get_new_arrivals(request):
     """Returns all products ordered by newest first."""
-    products = Product.objects.select_related('category').order_by('-created_at')
+    products = with_ratings(Product.objects.select_related('category')).order_by('-created_at')
     data = cached_api_data(
         "products:new-arrivals",
         lambda: ProductSerializer(products, many=True, context={'request': request}).data,
@@ -426,7 +579,7 @@ def get_new_arrivals(request):
 @api_view(['GET'])
 def get_sale_products(request):
     """Returns products with a product-level discount."""
-    products = Product.objects.select_related('category').filter(
+    products = with_ratings(Product.objects.select_related('category')).filter(
         discount_percentage__gt=0,
     ).order_by('-discount_percentage', '-created_at')
     data = cached_api_data(
@@ -467,11 +620,11 @@ def get_homepage(request):
             Q(ends_at__isnull=True) | Q(ends_at__gte=now),
         ).order_by('sort_order', '-created_at')[:8]
 
-        deal_products = Product.objects.select_related('category', 'category__parent').filter(
+        deal_products = with_ratings(Product.objects.select_related('category', 'category__parent')).filter(
             discount_percentage__gt=0,
         ).order_by('-discount_percentage', '-created_at')[:10]
 
-        hot_products = Product.objects.select_related('category', 'category__parent').filter(
+        hot_products = with_ratings(Product.objects.select_related('category', 'category__parent')).filter(
             Q(is_hot=True) | Q(is_weekly_top=True)
         ).order_by('-is_hot', '-is_weekly_top', '-created_at')[:10]
 
@@ -489,12 +642,12 @@ def get_homepage(request):
         category_sections = []
         for category in featured_categories:
             child_ids = [child.id for child in category.children.all()]
-            products = Product.objects.select_related('category', 'category__parent').filter(
+            products = with_ratings(Product.objects.select_related('category', 'category__parent')).filter(
                 Q(category=category) | Q(category_id__in=child_ids)
             ).filter(is_featured=True).order_by('-created_at')[:6]
 
             if not products:
-                products = Product.objects.select_related('category', 'category__parent').filter(
+                products = with_ratings(Product.objects.select_related('category', 'category__parent')).filter(
                     Q(category=category) | Q(category_id__in=child_ids)
                 ).order_by('-created_at')[:6]
 

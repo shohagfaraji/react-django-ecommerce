@@ -16,6 +16,8 @@ import {
     rememberProducts,
     productCacheKey,
 } from "../utils/apiCache";
+import StarRating from "../components/StarRating";
+import { formatDate } from "../utils/orders";
 
 function ProductDetails() {
     const { showAlert } = useAlert();
@@ -27,6 +29,7 @@ function ProductDetails() {
     const [loading, setLoading] = useState(() => !getCachedProduct(id));
     const [error, setError] = useState(null);
     const [imageFailed, setImageFailed] = useState(false);
+    const [reviews, setReviews] = useState([]);
 
     const { addToCart } = useCart();
 
@@ -63,6 +66,13 @@ function ProductDetails() {
 
         return () => controller.abort();
     }, [id, BASEURL]);
+
+    useEffect(() => {
+        fetch(`${BASEURL}/api/products/${id}/reviews/`)
+            .then((response) => response.ok ? response.json() : [])
+            .then(setReviews)
+            .catch(() => setReviews([]));
+    }, [BASEURL, id]);
 
     if (loading) {
         return (
@@ -156,6 +166,9 @@ function ProductDetails() {
                         <h1 className="text-3xl font-black leading-tight text-slate-950 sm:text-4xl">
                             {product.name}
                         </h1>
+                        <div className="mt-3">
+                            <StarRating value={product.average_rating} count={product.review_count} size="text-base" />
+                        </div>
                         <p className="mt-4 text-base leading-7 text-slate-600">
                             {product.description ||
                                 "More product details will be available soon."}
@@ -210,6 +223,36 @@ function ProductDetails() {
                             </span>
                         </div>
                     </div>
+                </section>
+                <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h2 className="text-2xl font-black text-slate-950">Customer reviews</h2>
+                    {reviews.length === 0 ? (
+                        <p className="mt-4 text-sm font-semibold text-slate-500">No reviews yet.</p>
+                    ) : (
+                        <div className="mt-5 divide-y divide-slate-100">
+                            {reviews.map((review) => (
+                                <article key={review.id} className="py-5 first:pt-0">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <p className="font-black text-slate-900">{review.username}</p>
+                                            <StarRating value={review.rating} />
+                                        </div>
+                                        <time className="text-xs font-bold text-slate-500">{formatDate(review.created_at)}</time>
+                                    </div>
+                                    {review.comment && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{review.comment}</p>}
+                                    {review.images.length > 0 && (
+                                        <div className="mt-4 flex flex-wrap gap-3">
+                                            {review.images.map((image) => (
+                                                <a key={image.id} href={image.image_url} target="_blank" rel="noreferrer">
+                                                    <img src={image.image_url} alt="Customer review attachment" className="h-24 w-24 rounded-lg border border-slate-200 object-cover" />
+                                                </a>
+                                            ))}
+                                        </div>
+                                    )}
+                                </article>
+                            ))}
+                        </div>
+                    )}
                 </section>
             </div>
         </main>

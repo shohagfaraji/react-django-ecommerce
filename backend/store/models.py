@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import MaxValueValidator, MinValueValidator
 from cloudinary.models import CloudinaryField
 
 class Category(models.Model):
@@ -126,6 +127,43 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} x{self.quantity}"
+
+
+class Review(models.Model):
+    order_item = models.OneToOneField(
+        OrderItem,
+        related_name='review',
+        on_delete=models.CASCADE,
+    )
+    product = models.ForeignKey(Product, related_name='reviews', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, related_name='reviews', on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comment = models.TextField(max_length=2000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(
+                fields=['product', '-created_at'],
+                name='store_revie_product_00f310_idx',
+            ),
+            models.Index(fields=['user'], name='store_revie_user_id_805d44_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.product.name}: {self.rating}/5 by {self.user.username}"
+
+
+class ReviewImage(models.Model):
+    review = models.ForeignKey(Review, related_name='images', on_delete=models.CASCADE)
+    image = CloudinaryField('review image')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Image for review {self.review_id}"
     
 class Cart(models.Model):
     user = models.ForeignKey(User, on_delete = models.CASCADE, null = True, blank = True)

@@ -3,7 +3,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Cart, CartItem, Category, Order, Product, UserProfile
+from .models import Cart, CartItem, Category, Order, OrderItem, Product, Review, UserProfile
 from .serializers import ProductSerializer
 
 
@@ -243,6 +243,163 @@ class OrderTests(APITestCase):
         res = self.client.get(f"/api/orders/{other_order.id}/")
 
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class ReviewTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="reviewer", password="pass123")
+        self.other_user = User.objects.create_user(username="other", password="pass123")
+        category = make_category()
+        self.product = make_product(category)
+        self.order = Order.objects.create(
+            user=self.user,
+            total_amount="100.00",
+            status=Order.STATUS_DELIVERED,
+        )
+        self.item = OrderItem.objects.create(
+            order=self.order,
+            product=self.product,
+            quantity=1,
+            price="100.00",
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_delivered_item_owner_can_review(self):
+        response = self.client.post(
+            "/api/reviews/",
+            {"order_item": self.item.id, "rating": 5, "comment": "Excellent"},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        review = Review.objects.get(order_item=self.item)
+        self.assertEqual(review.user, self.user)
+        self.assertEqual(review.product, self.product)
+        self.assertEqual(review.rating, 5)
+
+    def test_item_cannot_be_reviewed_before_delivery(self):
+        self.order.status = Order.STATUS_SHIPPED
+        self.order.save(update_fields=["status"])
+
+        response = self.client.post(
+            "/api/reviews/",
+            {"order_item": self.item.id, "rating": 4},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(Review.objects.exists())
+
+    def test_other_customer_cannot_review_item(self):
+        self.client.force_authenticate(user=self.other_user)
+
+        response = self.client.post(
+            "/api/reviews/",
+            {"order_item": self.item.id, "rating": 4},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_item_can_only_be_reviewed_once(self):
+        Review.objects.create(
+            order_item=self.item,
+            product=self.product,
+            user=self.user,
+            rating=5,
+        )
+
+        response = self.client.post(
+            "/api/reviews/",
+            {"order_item": self.item.id, "rating": 3},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_rating_must_be_between_one_and_five(self):
+        response = self.client.post(
+            "/api/reviews/",
+            {"order_item": self.item.id, "rating": 6},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_product_exposes_average_and_review_count(self):
+        Review.objects.create(
+            order_item=self.item,
+            product=self.product,
+            user=self.user,
+            rating=4,
+        )
+
+        response = self.client.get(f"/api/product/{self.product.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["average_rating"], 4.0)
+        self.assertEqual(response.data["review_count"], 1)
+
+    def test_order_item_reports_review_eligibility(self):
+        response = self.client.get(f"/api/orders/{self.order.id}/")
+
+        self.assertTrue(response.data["items"][0]["can_review"])
+        self.assertIsNone(response.data["items"][0]["review"])
+
+    def test_owner_can_update_review(self):
+        review = Review.objects.create(
+            order_item=self.item,
+            product=self.product,
+            user=self.user,
+            rating=3,
+            comment="Okay",
+        )
+
+        response = self.client.patch(
+            f"/api/reviews/{review.id}/",
+            {"rating": 5, "comment": "Much better"},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        review.refresh_from_db()
+        self.assertEqual(review.rating, 5)
+        self.assertEqual(review.comment, "Much better")
+
+    def test_other_customer_cannot_update_or_delete_review(self):
+        review = Review.objects.create(
+            order_item=self.item,
+            product=self.product,
+            user=self.user,
+            rating=4,
+        )
+        self.client.force_authenticate(user=self.other_user)
+
+        update_response = self.client.patch(
+            f"/api/reviews/{review.id}/",
+            {"rating": 1},
+            format="multipart",
+        )
+        delete_response = self.client.delete(f"/api/reviews/{review.id}/")
+
+        self.assertEqual(update_response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(delete_response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(Review.objects.filter(pk=review.id).exists())
+
+    def test_owner_can_delete_review_and_review_item_again(self):
+        review = Review.objects.create(
+            order_item=self.item,
+            product=self.product,
+            user=self.user,
+            rating=4,
+        )
+
+        response = self.client.delete(f"/api/reviews/{review.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Review.objects.filter(pk=review.id).exists())
+        order_response = self.client.get(f"/api/orders/{self.order.id}/")
+        self.assertTrue(order_response.data["items"][0]["can_review"])
 
 
 class ProfileTests(APITestCase):

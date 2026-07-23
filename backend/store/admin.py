@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.storage import FileSystemStorage
 import cloudinary.uploader
 
-from .models import Category, Product, Order, OrderItem, Cart, CartItem, UserProfile, HeroBanner
+from .models import Category, Product, Order, OrderItem, Cart, CartItem, UserProfile, HeroBanner, Review, ReviewImage
 from .cache_utils import bump_store_cache_version
 
 class StoreCacheInvalidationAdminMixin:
@@ -151,3 +151,18 @@ class UserProfileAdmin(admin.ModelAdmin):
     list_select_related = ('user',)
     show_full_result_count = False
     list_per_page = 25
+
+
+class ReviewImageInline(admin.TabularInline):
+    model = ReviewImage
+    extra = 0
+
+
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ('product', 'user', 'rating', 'created_at')
+    list_filter = ('rating', 'created_at')
+    search_fields = ('product__name', 'user__username', 'comment')
+    list_select_related = ('product', 'user', 'order_item')
+    readonly_fields = ('created_at',)
+    inlines = (ReviewImageInline,)

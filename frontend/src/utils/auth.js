@@ -16,10 +16,6 @@ export const getRefreshToken = () => {
     return localStorage.getItem("refresh_token");
 };
 
-// Calls the backend's /api/token/refresh/ endpoint to get a new access token
-// using the stored refresh token. Returns the new access token, or null if
-// the refresh failed (e.g. refresh token also expired) — in which case the
-// stored tokens are cleared so the app treats the user as logged out.
 const refreshAccessToken = async () => {
     const refreshToken = getRefreshToken();
     if (!refreshToken) return null;
@@ -59,7 +55,6 @@ export const authFetch = async (url, options = {}) => {
 
     let res = await fetch(url, { ...options, headers });
 
-    // Access token expired or invalid — try refreshing once, then retry the request
     if (res.status === 401) {
         const newToken = await refreshAccessToken();
 
