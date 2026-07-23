@@ -124,26 +124,28 @@ function Navbar({ onMenuToggle }) {
                 showNav ? "translate-y-0" : "-translate-y-full"
             }`}
         >
-            <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-3 max-[360px]:gap-2 max-[360px]:px-3 sm:px-6 lg:px-8">
+            <div className="mx-auto grid h-16 max-w-[1600px] grid-cols-[40px_auto_1fr_auto] items-center gap-3 px-4 max-[360px]:gap-2 max-[360px]:px-3 sm:px-6 md:flex md:h-auto md:py-3 lg:px-8">
                 <button
-                    className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-700 transition hover:bg-slate-50 md:hidden"
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-100 md:hidden"
                     onClick={onMenuToggle}
                     aria-label="Toggle menu"
                     type="button"
                 >
-                    <FaBars />
+                    <FaBars className="text-xl" />
                 </button>
 
                 <Link
                     to="/"
-                    className="flex shrink-0 items-center gap-2 text-xl font-black tracking-tight text-slate-950 max-[360px]:text-lg"
+                    className="flex h-10 shrink-0 items-center gap-2 text-xl font-black leading-none tracking-tight text-slate-950 max-[360px]:text-lg"
                 >
                     <img
                         src="/favicon-96x96.png"
                         alt=""
                         className="h-10 w-10 object-contain max-[360px]:h-8 max-[360px]:w-8"
                     />
-                    <span className="max-[300px]:sr-only">Winkelo</span>
+                    <span className="relative top-[3px] max-[300px]:sr-only md:top-0">
+                        Winkelo
+                    </span>
                 </Link>
 
                 <form
@@ -171,13 +173,13 @@ function Navbar({ onMenuToggle }) {
                     </div>
                 </form>
 
-                <div className="ml-auto flex min-w-0 shrink items-center gap-2 sm:gap-3">
+                <div className="col-start-4 flex h-10 min-w-0 shrink items-center gap-2 self-center sm:gap-3 md:col-auto md:ml-auto">
                     <Link
                         to="/cart"
-                        className="relative flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-800 transition hover:bg-slate-50"
+                        className="relative flex h-10 w-10 items-center justify-center rounded-full text-slate-800 transition hover:bg-slate-100"
                         aria-label="Cart"
                     >
-                        <FaShoppingCart />
+                        <FaShoppingCart className="text-xl" />
                         {cartCount > 0 && (
                             <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-black text-white">
                                 {cartCount}
@@ -193,10 +195,10 @@ function Navbar({ onMenuToggle }) {
                             Login
                         </Link>
                     ) : (
-                        <div className="flex min-w-0 items-center gap-1 rounded-md border border-slate-200 p-1">
+                        <div className="flex min-w-0 items-center gap-1">
                             <Link
                                 to="/profile"
-                                className="group flex min-w-0 items-center gap-2 rounded-md px-1.5 py-0.5 transition hover:bg-slate-50"
+                                className="group flex min-w-0 items-center gap-2 rounded-full p-1 transition hover:bg-slate-100 md:pr-3"
                                 aria-label="Open account profile"
                             >
                                 <img
@@ -218,12 +220,12 @@ function Navbar({ onMenuToggle }) {
                             </Link>
                             <button
                                 onClick={handleLogout}
-                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
                                 type="button"
                                 aria-label="Log out"
                                 title="Log out"
                             >
-                                <FaSignOutAlt />
+                                <FaSignOutAlt className="text-xl" />
                             </button>
                         </div>
                     )}
