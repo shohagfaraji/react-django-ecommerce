@@ -21,5 +21,11 @@ urlpatterns = [
     path('cart/remove/', views.remove_from_cart),
     path('cart/update/', views.update_cart_quantity),
     path('orders/create/', views.create_order),
+    path('orders/', views.user_orders),
+    path('orders/<int:pk>/', views.user_order_detail),
+    path('profile/', views.user_profile),
+    path('profile/password/', views.change_password),
+    path('profile/password/check/', views.check_current_password),
+    path('profile/delete/', views.delete_account),
     path('bootstrap-superuser/', views.bootstrap_superuser),
 ]

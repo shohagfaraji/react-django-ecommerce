@@ -39,6 +39,7 @@ function Login() {
             if (res.ok && data.success !== false) {
                 saveTokens(data);
                 localStorage.setItem("username", form.username);
+                window.dispatchEvent(new Event("winkelo:auth-changed"));
                 void fetchCart();
                 showAlert("Login successful");
                 nav("/");

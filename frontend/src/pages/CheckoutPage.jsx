@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { authFetch } from "../utils/auth";
 import { useAlert } from "../context/AlertContext";
@@ -30,6 +30,26 @@ function CheckoutPage() {
     const [message, setMessage] = useState(null);
     const [confirmedOrder, setConfirmedOrder] = useState(null);
     const [orderSummary, setOrderSummary] = useState(null);
+
+    useEffect(() => {
+        const loadSavedDetails = async () => {
+            try {
+                const res = await authFetch(`${BASEURL}/api/profile/`);
+                if (!res.ok) return;
+                const profile = await res.json();
+                setForm((current) => ({
+                    ...current,
+                    name: current.name || profile.name || "",
+                    address: current.address || profile.address || "",
+                    phone: current.phone || profile.phone || "",
+                }));
+            } catch {
+                // Checkout remains usable if saved profile details cannot load.
+            }
+        };
+
+        void loadSavedDetails();
+    }, [BASEURL]);
 
     const handleChange = (e) => {
         setForm({
@@ -236,7 +256,7 @@ function OrderDeliveryAnimation({ order, onContinue }) {
                     Order confirmed
                 </p>
                 <h1 className="mt-2 text-3xl font-black text-slate-950">
-                    Your package is on the way
+                    Your order has been placed
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                     Thanks, {order.name}. We have received your order and are
@@ -250,14 +270,22 @@ function OrderDeliveryAnimation({ order, onContinue }) {
                 </div>
 
                 <div className="mt-7 grid grid-cols-4 gap-2 sm:gap-3">
-                    <DeliveryStep label="Cart" status="Done" complete />
+                    <DeliveryStep label="Cart" status="Completed" complete />
                     <DeliveryStep
-                        label="Order placement"
-                        status="We are here"
+                        label="Delivery details"
+                        status="Completed"
+                        complete
+                    />
+                    <DeliveryStep
+                        label="Review order"
+                        status="Completed"
+                        complete
+                    />
+                    <DeliveryStep
+                        label="Order confirmed"
+                        status="Confirmed"
                         current
                     />
-                    <DeliveryStep label="Delivery" status="Courier preparing" />
-                    <DeliveryStep label="Receiving" status="Home delivery" />
                 </div>
 
                 <div className="mt-7 flex gap-3 rounded-lg bg-slate-50 p-4">

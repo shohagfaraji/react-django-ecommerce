@@ -77,19 +77,46 @@ class Product(models.Model):
     
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete = models.CASCADE)
+    full_name = models.CharField(max_length=150, blank=True)
     phone = models.CharField(max_length = 15, blank = True)
     address = models.TextField(blank=True)
+    profile_picture = CloudinaryField('profile picture', blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.user.username
 
 class Order(models.Model):
+    STATUS_PLACED = 'placed'
+    STATUS_CONFIRMED = 'confirmed'
+    STATUS_PROCESSING = 'processing'
+    STATUS_SHIPPED = 'shipped'
+    STATUS_OUT_FOR_DELIVERY = 'out_for_delivery'
+    STATUS_DELIVERED = 'delivered'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_PLACED, 'Order placed'),
+        (STATUS_CONFIRMED, 'Confirmed'),
+        (STATUS_PROCESSING, 'Processing'),
+        (STATUS_SHIPPED, 'Shipped'),
+        (STATUS_OUT_FOR_DELIVERY, 'Out for delivery'),
+        (STATUS_DELIVERED, 'Delivered'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
     user = models.ForeignKey(User, on_delete = models.CASCADE, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add = True)
+    updated_at = models.DateTimeField(auto_now=True)
     total_amount = models.DecimalField(max_digits = 10, decimal_places = 2)
+    status = models.CharField(max_length=24, choices=STATUS_CHOICES, default=STATUS_PLACED)
+    recipient_name = models.CharField(max_length=150, blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    delivery_address = models.TextField(blank=True)
+    payment_method = models.CharField(max_length=30, default='COD')
 
     def __str__(self):
-        return f"Order {self.id} by {self.user.username}"
+        username = self.user.username if self.user else 'guest'
+        return f"Order {self.id} by {username}"
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name = 'items', on_delete = models.CASCADE)

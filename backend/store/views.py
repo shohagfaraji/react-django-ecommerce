@@ -2,12 +2,18 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
-from .models import Product, Category, Cart, CartItem, Order, OrderItem, HeroBanner
-from .serializers import ProductSerializer, CategorySerializer, CategorySummarySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, HeroBannerSerializer
+from .models import Product, Category, Cart, CartItem, Order, OrderItem, HeroBanner, UserProfile
+from .serializers import ProductSerializer, CategorySerializer, CategorySummarySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, HeroBannerSerializer, UserProfileSerializer, OrderSerializer
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Prefetch, Q
 from django.core.cache import cache
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.conf import settings
+from django.core.files.storage import FileSystemStorage
+from decimal import Decimal, ROUND_HALF_UP
+import cloudinary.uploader
 import os
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
@@ -206,9 +212,19 @@ def remove_from_cart(request):
 def create_order(request):
     data = request.data
 
-    phone = data.get('phone')
-    if not phone or not phone.isdigit():
+    recipient_name = str(data.get('name', '')).strip()
+    address = str(data.get('address', '')).strip()
+    phone = str(data.get('phone', '')).strip()
+    payment_method = data.get('payment_method', 'COD')
+
+    if not recipient_name:
+        return Response({"error": "Name is required"}, status=400)
+    if not address:
+        return Response({"error": "Delivery address is required"}, status=400)
+    if not phone or not phone.replace('+', '', 1).isdigit():
         return Response({"error": "Invalid phone number"}, status=400)
+    if payment_method not in {'COD', 'CreditCard'}:
+        return Response({"error": "Invalid payment method"}, status=400)
 
     cart = Cart.objects.filter(user=request.user).first()
     if not cart:
@@ -219,19 +235,33 @@ def create_order(request):
         return Response({"error": "Cart is empty"}, status=400)
 
     with transaction.atomic():
-        total = sum(item.product.price * item.quantity for item in cart_items)
+        priced_items = []
+        total = Decimal('0.00')
+        for item in cart_items:
+            unit_price = item.product.price
+            if item.product.discount_percentage > 0:
+                unit_price = (
+                    unit_price
+                    * (Decimal('1') - Decimal(item.product.discount_percentage) / Decimal('100'))
+                ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total += unit_price * item.quantity
+            priced_items.append((item, unit_price))
 
         order = Order.objects.create(
             user=request.user,
-            total_amount=total
+            total_amount=total,
+            recipient_name=recipient_name,
+            phone=phone,
+            delivery_address=address,
+            payment_method=payment_method,
         )
 
-        for item in cart_items:
+        for item, unit_price in priced_items:
             OrderItem.objects.create(
                 order=order,
                 product=item.product,
                 quantity=item.quantity,
-                price=item.product.price
+                price=unit_price,
             )
 
         cart_items.delete()
@@ -240,6 +270,135 @@ def create_order(request):
         "message": "Order placed successfully",
         "order_id": order.id
     }, status=201)
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def user_profile(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if request.method == 'GET':
+        return Response(
+            UserProfileSerializer(profile, context={'request': request}).data
+        )
+
+    serializer = UserProfileSerializer(
+        profile,
+        data=request.data,
+        partial=True,
+        context={'request': request},
+    )
+    if serializer.is_valid():
+        with transaction.atomic():
+            serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    current_password = request.data.get('current_password', '')
+    new_password = request.data.get('new_password', '')
+    confirm_password = request.data.get('confirm_password', '')
+
+    if not request.user.check_password(current_password):
+        return Response(
+            {'current_password': ['Current password is incorrect.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if new_password != confirm_password:
+        return Response(
+            {'confirm_password': ['New passwords do not match.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        validate_password(new_password, user=request.user)
+    except ValidationError as exc:
+        return Response(
+            {'new_password': list(exc.messages)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    request.user.set_password(new_password)
+    request.user.save(update_fields=['password'])
+    return Response({'message': 'Password changed successfully.'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def check_current_password(request):
+    password = request.data.get('current_password', '')
+    return Response({
+        'matches': bool(password) and request.user.check_password(password),
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_orders(request):
+    orders = (
+        Order.objects.filter(user=request.user)
+        .prefetch_related('items__product')
+        .order_by('-created_at')
+    )
+    return Response(
+        OrderSerializer(orders, many=True, context={'request': request}).data
+    )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_order_detail(request, pk):
+    order = (
+        Order.objects.filter(user=request.user, pk=pk)
+        .prefetch_related('items__product')
+        .first()
+    )
+    if not order:
+        return Response({'detail': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+    return Response(OrderSerializer(order, context={'request': request}).data)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_account(request):
+    if request.data.get('confirmation') != 'DELETE':
+        return Response(
+            {'confirmation': ['Type DELETE to confirm account deletion.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not request.user.check_password(request.data.get('password', '')):
+        return Response(
+            {'password': ['Password is incorrect.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    profile = UserProfile.objects.filter(user=request.user).first()
+    picture_name = (
+        str(profile.profile_picture)
+        if profile and profile.profile_picture
+        else ''
+    )
+
+    with transaction.atomic():
+        request.user.delete()
+        if picture_name:
+            transaction.on_commit(lambda: _delete_profile_picture(picture_name))
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _delete_profile_picture(picture_name):
+    try:
+        if settings.USE_CLOUDINARY_MEDIA:
+            cloudinary.uploader.destroy(picture_name, resource_type='image')
+        else:
+            storage = FileSystemStorage(location=settings.MEDIA_ROOT)
+            if storage.exists(picture_name):
+                storage.delete(picture_name)
+    except Exception:
+        # The account deletion itself must not be reversed by a remote cleanup failure.
+        pass
 
 @api_view(['GET'])
 def get_weekly_top_selling(request):
@@ -383,7 +542,10 @@ def check_username(request):
             "message": "Username cannot contain spaces.",
         }, status=status.HTTP_400_BAD_REQUEST)
 
-    is_taken = User.objects.filter(username__iexact=username).exists()
+    matches = User.objects.filter(username__iexact=username)
+    if request.user.is_authenticated:
+        matches = matches.exclude(pk=request.user.pk)
+    is_taken = matches.exists()
     return Response({
         "available": not is_taken,
         "message": "This username is already taken." if is_taken else "Username is available.",

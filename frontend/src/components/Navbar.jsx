@@ -1,14 +1,26 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useCart } from "../context/CartContext.jsx";
-import { FaBars, FaSearch, FaShoppingCart, FaUser } from "react-icons/fa";
-import { clearTokens, getAccessToken } from "../utils/auth.js";
+import {
+    FaBars,
+    FaSearch,
+    FaShoppingCart,
+    FaSignOutAlt,
+} from "react-icons/fa";
+import { authFetch, clearTokens, getAccessToken } from "../utils/auth.js";
+
+const DEFAULT_AVATAR = "/default-avatar.svg";
 
 function Navbar({ onMenuToggle }) {
+    const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const [showNav, setShowNav] = useState(true);
     const [search, setSearch] = useState("");
+    const [username, setUsername] = useState(
+        () => localStorage.getItem("username") || "",
+    );
+    const [profilePicture, setProfilePicture] = useState(DEFAULT_AVATAR);
     const [searchParams] = useSearchParams();
-    const { cartItems } = useCart();
+    const { cartItems, clearCart } = useCart();
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -32,6 +44,57 @@ function Navbar({ onMenuToggle }) {
         setSearch(searchParams.get("search") || "");
     }, [searchParams]);
 
+    useEffect(() => {
+        let active = true;
+
+        const syncProfile = async () => {
+            setUsername(localStorage.getItem("username") || "");
+
+            if (!getAccessToken()) {
+                setProfilePicture(DEFAULT_AVATAR);
+                return;
+            }
+
+            try {
+                const res = await authFetch(`${BASEURL}/api/profile/`);
+                if (!res.ok) return;
+
+                const profile = await res.json();
+                if (!active) return;
+
+                setUsername(profile.username || "");
+                setProfilePicture(
+                    profile.profile_picture_url || DEFAULT_AVATAR,
+                );
+                localStorage.setItem("username", profile.username || "");
+            } catch {
+                if (active) setProfilePicture(DEFAULT_AVATAR);
+            }
+        };
+
+        const handleProfileChanged = () => void syncProfile();
+
+        void syncProfile();
+        window.addEventListener(
+            "winkelo:profile-updated",
+            handleProfileChanged,
+        );
+        window.addEventListener("winkelo:auth-changed", handleProfileChanged);
+        window.addEventListener("storage", handleProfileChanged);
+        return () => {
+            active = false;
+            window.removeEventListener(
+                "winkelo:profile-updated",
+                handleProfileChanged,
+            );
+            window.removeEventListener(
+                "winkelo:auth-changed",
+                handleProfileChanged,
+            );
+            window.removeEventListener("storage", handleProfileChanged);
+        };
+    }, [BASEURL]);
+
     const handleSearch = (e) => {
         e.preventDefault();
         const term = search.trim();
@@ -43,12 +106,15 @@ function Navbar({ onMenuToggle }) {
         0,
     );
     const isLoggedIn = !!getAccessToken();
-    const username = localStorage.getItem("username");
 
     const handleLogout = () => {
         clearTokens();
         localStorage.removeItem("username");
         localStorage.removeItem("email");
+        clearCart();
+        setUsername("");
+        setProfilePicture(DEFAULT_AVATAR);
+        window.dispatchEvent(new Event("winkelo:auth-changed"));
         navigate("/login");
     };
 
@@ -127,23 +193,38 @@ function Navbar({ onMenuToggle }) {
                             Login
                         </Link>
                     ) : (
-                        <div className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 px-3 py-2 max-[360px]:px-2">
-                            <FaUser className="hidden text-slate-500 sm:block" />
-                            <div className="leading-tight">
-                                <p className="max-w-[92px] truncate text-sm font-black text-slate-900 max-[360px]:max-w-[58px] max-[360px]:text-xs">
+                        <div className="flex min-w-0 items-center gap-1 rounded-md border border-slate-200 p-1">
+                            <Link
+                                to="/profile"
+                                className="group flex min-w-0 items-center gap-2 rounded-md px-1.5 py-0.5 transition hover:bg-slate-50"
+                                aria-label="Open account profile"
+                            >
+                                <img
+                                    src={profilePicture}
+                                    alt=""
+                                    className="h-8 w-8 shrink-0 rounded-full border border-slate-200 object-cover"
+                                    onError={(event) => {
+                                        event.currentTarget.onerror = null;
+                                        event.currentTarget.src =
+                                            DEFAULT_AVATAR;
+                                    }}
+                                />
+                                <span className="hidden max-w-[92px] truncate text-sm font-black text-slate-900 transition group-hover:text-emerald-700 md:block">
                                     {username
                                         ? username.charAt(0).toUpperCase() +
                                           username.slice(1)
                                         : "Account"}
-                                </p>
-                                <button
-                                    onClick={handleLogout}
-                                    className="text-xs font-bold text-slate-500 transition hover:text-rose-600 max-[360px]:text-[10px]"
-                                    type="button"
-                                >
-                                    Logout
-                                </button>
-                            </div>
+                                </span>
+                            </Link>
+                            <button
+                                onClick={handleLogout}
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                                type="button"
+                                aria-label="Log out"
+                                title="Log out"
+                            >
+                                <FaSignOutAlt />
+                            </button>
                         </div>
                     )}
                 </div>
