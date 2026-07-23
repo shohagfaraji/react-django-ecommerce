@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FaShoppingCart, FaStar } from "react-icons/fa";
+import StarRating from "./StarRating";
 
 function ProductCard({ product }) {
     const [imageFailed, setImageFailed] = useState(false);
@@ -47,12 +48,18 @@ function ProductCard({ product }) {
                 <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-400">
                     {product.category?.name || "Product"}
                 </p>
-                <h2 className="line-clamp-2 min-h-11 text-base font-black leading-snug text-slate-900">
+                <h2 className="line-clamp-2 text-base font-black leading-snug text-slate-900">
                     {product.name}
                 </h2>
+                <div className="mt-1.5">
+                    <StarRating
+                        value={product.average_rating}
+                        count={product.review_count}
+                    />
+                </div>
 
                 {isOnSale ? (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="text-sm font-bold text-slate-400 line-through">
                             ${product.price}
                         </span>
@@ -61,7 +68,7 @@ function ProductCard({ product }) {
                         </span>
                     </div>
                 ) : (
-                    <p className="mt-3 text-lg font-black text-emerald-700">
+                    <p className="mt-2 text-lg font-black text-emerald-700">
                         ${product.price}
                     </p>
                 )}

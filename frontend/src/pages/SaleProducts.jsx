@@ -57,7 +57,6 @@ function SaleProducts() {
     return (
         <div className="bg-gray-100 min-h-screen pt-30 md:pt-20 pb-10">
             <div className="px-2 sm:px-6">
-                {/* Header */}
                 <div className="flex items-center gap-3 mb-6">
                     <FaBolt className="text-red-500 text-2xl" />
                     <h1 className="text-3xl font-bold text-gray-800">Deals</h1>
@@ -68,7 +67,6 @@ function SaleProducts() {
                     )}
                 </div>
 
-                {/* Product grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
                     {loading ? (
                         Array.from({ length: 10 }).map((_, i) => (

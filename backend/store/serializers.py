@@ -6,6 +6,7 @@ import cloudinary.uploader
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files.storage import FileSystemStorage
+from django.db.models import Avg
 from rest_framework import serializers
 from .models import (
     Product,
@@ -15,6 +16,8 @@ from .models import (
     HeroBanner,
     Order,
     OrderItem,
+    Review,
+    ReviewImage,
     UserProfile,
 )
 
@@ -119,6 +122,8 @@ class ProductSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
     active_discount = serializers.SerializerMethodField()
     discounted_price = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -138,6 +143,16 @@ class ProductSerializer(serializers.ModelSerializer):
             sale = Decimal(str(obj.price)) * (1 - Decimal(discount) / 100)
             return str(sale.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         return None
+
+    def get_average_rating(self, obj):
+        value = getattr(obj, 'average_rating', None)
+        if value is None:
+            value = obj.reviews.aggregate(value=Avg('rating'))['value']
+        return round(float(value), 1) if value is not None else 0
+
+    def get_review_count(self, obj):
+        value = getattr(obj, 'review_count', None)
+        return value if value is not None else obj.reviews.count()
 
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
@@ -281,7 +296,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
                 if storage.exists(picture_name):
                     storage.delete(picture_name)
         except Exception:
-            # A failed cleanup must not discard the newly saved profile picture.
             pass
 
 
@@ -289,6 +303,8 @@ class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
     product_image = serializers.SerializerMethodField()
     line_total = serializers.SerializerMethodField()
+    review = serializers.SerializerMethodField()
+    can_review = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
@@ -300,6 +316,8 @@ class OrderItemSerializer(serializers.ModelSerializer):
             'quantity',
             'price',
             'line_total',
+            'review',
+            'can_review',
         ]
 
     def get_product_image(self, obj):
@@ -312,16 +330,53 @@ class OrderItemSerializer(serializers.ModelSerializer):
     def get_line_total(self, obj):
         return f"{obj.price * obj.quantity:.2f}"
 
+    def get_review(self, obj):
+        try:
+            review = obj.review
+        except Review.DoesNotExist:
+            return None
+        return ReviewSerializer(review, context=self.context).data
+
+    def get_can_review(self, obj):
+        try:
+            obj.review
+            has_review = True
+        except Review.DoesNotExist:
+            has_review = False
+        return obj.order.status == Order.STATUS_DELIVERED and not has_review
+
+
+class ReviewImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ReviewImage
+        fields = ['id', 'image_url']
+
+    def get_image_url(self, obj):
+        return resolve_image_url(obj.image, self.context.get('request'), width=900)
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    images = ReviewImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Review
+        fields = ['id', 'username', 'rating', 'comment', 'created_at', 'images']
+
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     item_count = serializers.SerializerMethodField()
+    customer_order_number = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Order
         fields = [
             'id',
+            'customer_order_number',
             'created_at',
             'updated_at',
             'total_amount',
