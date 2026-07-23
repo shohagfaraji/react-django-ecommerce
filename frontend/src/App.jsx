@@ -19,6 +19,8 @@ import CheckoutPage from "./pages/CheckoutPage";
 import PrivateRouter from "./components/PrivateRouter";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ProfilePage from "./pages/ProfilePage";
+import OrderDetailPage from "./pages/OrderDetailPage";
 import Footer from "./components/Footer";
 
 function ScrollToTop() {
@@ -79,6 +81,11 @@ function App() {
                             <Route
                                 path="/checkout"
                                 element={<CheckoutPage />}
+                            />
+                            <Route path="/profile" element={<ProfilePage />} />
+                            <Route
+                                path="/profile/orders/:id"
+                                element={<OrderDetailPage />}
                             />
                         </Route>
 

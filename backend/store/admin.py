@@ -105,7 +105,9 @@ class HeroBannerAdmin(ImageUploadAdminMixin, StoreCacheInvalidationAdminMixin, a
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'total_amount', 'created_at')
+    list_display = ('id', 'user', 'status', 'total_amount', 'created_at')
+    list_filter = ('status', 'payment_method')
+    list_editable = ('status',)
     search_fields = ('id', 'user__username', 'user__email')
     list_select_related = ('user',)
     ordering = ('-created_at',)
@@ -144,7 +146,7 @@ class CartItemAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'phone')
+    list_display = ('user', 'full_name', 'phone')
     autocomplete_fields = ('user',)
     list_select_related = ('user',)
     show_full_result_count = False

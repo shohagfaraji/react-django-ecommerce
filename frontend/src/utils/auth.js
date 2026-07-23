@@ -41,7 +41,7 @@ const refreshAccessToken = async () => {
         const data = await res.json();
         localStorage.setItem("access_token", data.access);
         return data.access;
-    } catch (error) {
+    } catch {
         clearTokens();
         return null;
     }
@@ -50,9 +50,12 @@ const refreshAccessToken = async () => {
 export const authFetch = async (url, options = {}) => {
     const token = getAccessToken();
     const headers = options.headers ? { ...options.headers } : {};
+    const isFormData = options.body instanceof FormData;
 
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    headers["Content-Type"] = "application/json";
+    if (!isFormData && options.body && !headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+    }
 
     let res = await fetch(url, { ...options, headers });
 

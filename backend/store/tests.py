@@ -3,7 +3,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Cart, CartItem, Category, Product
+from .models import Cart, CartItem, Category, Order, Product, UserProfile
 from .serializers import ProductSerializer
 
 
@@ -198,3 +198,161 @@ class OrderTests(APITestCase):
             format="json",
         )
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_created_order_keeps_delivery_details_and_sale_price(self):
+        self.product.discount_percentage = 25
+        self.product.save(update_fields=["discount_percentage"])
+
+        res = self.client.post(
+            "/api/orders/create/",
+            {
+                "name": "Test User",
+                "address": "Road 1",
+                "phone": "+8801700000000",
+                "payment_method": "COD",
+            },
+            format="json",
+        )
+
+        order = Order.objects.get(pk=res.data["order_id"])
+        self.assertEqual(order.recipient_name, "Test User")
+        self.assertEqual(order.delivery_address, "Road 1")
+        self.assertEqual(order.status, Order.STATUS_PLACED)
+        self.assertEqual(str(order.total_amount), "45.00")
+        self.assertEqual(str(order.items.get().price), "22.50")
+
+    def test_order_history_only_returns_authenticated_users_orders(self):
+        self.client.post(
+            "/api/orders/create/",
+            {"name": "Test User", "address": "Road 1", "phone": "01700000000"},
+            format="json",
+        )
+        another_user = User.objects.create_user(username="someoneelse", password="pass123")
+        Order.objects.create(user=another_user, total_amount="10.00")
+
+        res = self.client.get("/api/orders/")
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]["recipient_name"], "Test User")
+
+    def test_cannot_open_another_users_order(self):
+        another_user = User.objects.create_user(username="someoneelse", password="pass123")
+        other_order = Order.objects.create(user=another_user, total_amount="10.00")
+
+        res = self.client.get(f"/api/orders/{other_order.id}/")
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class ProfileTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="profileuser",
+            email="old@example.com",
+            password="pass12345",
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_profile_is_initialized_for_existing_user(self):
+        self.assertFalse(UserProfile.objects.filter(user=self.user).exists())
+
+        res = self.client.get("/api/profile/")
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["username"], "profileuser")
+        self.assertEqual(res.data["phone"], "")
+        self.assertEqual(res.data["address"], "")
+        self.assertTrue(UserProfile.objects.filter(user=self.user).exists())
+
+    def test_profile_update_changes_user_and_profile_fields(self):
+        res = self.client.patch(
+            "/api/profile/",
+            {
+                "username": "newprofileuser",
+                "name": "Profile User",
+                "email": "new@example.com",
+                "phone": "01700000000",
+                "address": "Dhaka",
+            },
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        profile = UserProfile.objects.get(user=self.user)
+        self.assertEqual(self.user.username, "newprofileuser")
+        self.assertEqual(self.user.email, "new@example.com")
+        self.assertEqual(profile.full_name, "Profile User")
+        self.assertEqual(profile.phone, "01700000000")
+
+    def test_profile_update_rejects_taken_username_case_insensitively(self):
+        User.objects.create_user(username="AlreadyTaken", password="pass12345")
+
+        res = self.client.patch(
+            "/api/profile/",
+            {"username": "alreadytaken"},
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("username", res.data)
+
+    def test_password_change_checks_current_password(self):
+        res = self.client.post(
+            "/api/profile/password/",
+            {
+                "current_password": "wrong",
+                "new_password": "Newsecurepass456!",
+                "confirm_password": "Newsecurepass456!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("current_password", res.data)
+
+    def test_password_change_success(self):
+        res = self.client.post(
+            "/api/profile/password/",
+            {
+                "current_password": "pass12345",
+                "new_password": "Newsecurepass456!",
+                "confirm_password": "Newsecurepass456!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("Newsecurepass456!"))
+
+    def test_delete_account_requires_explicit_confirmation(self):
+        res = self.client.delete(
+            "/api/profile/delete/",
+            {"password": "pass12345", "confirmation": "delete"},
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+
+    def test_delete_account_cascades_profile_cart_and_orders(self):
+        profile = UserProfile.objects.create(user=self.user, full_name="Profile User")
+        category = make_category()
+        product = make_product(category)
+        cart = Cart.objects.create(user=self.user)
+        CartItem.objects.create(cart=cart, product=product)
+        order = Order.objects.create(user=self.user, total_amount="100.00")
+
+        res = self.client.delete(
+            "/api/profile/delete/",
+            {"password": "pass12345", "confirmation": "DELETE"},
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(User.objects.filter(pk=self.user.pk).exists())
+        self.assertFalse(UserProfile.objects.filter(pk=profile.pk).exists())
+        self.assertFalse(Cart.objects.filter(pk=cart.pk).exists())
+        self.assertFalse(Order.objects.filter(pk=order.pk).exists())

@@ -1,10 +1,22 @@
 from pathlib import Path
+from uuid import uuid4
 from urllib.parse import urlparse
 
+import cloudinary.uploader
 from django.conf import settings
-from rest_framework import serializers
-from .models import Product, Category, Cart, CartItem, HeroBanner
 from django.contrib.auth.models import User
+from django.core.files.storage import FileSystemStorage
+from rest_framework import serializers
+from .models import (
+    Product,
+    Category,
+    Cart,
+    CartItem,
+    HeroBanner,
+    Order,
+    OrderItem,
+    UserProfile,
+)
 
 
 def optimize_cloudinary_url(url, width=900):
@@ -166,6 +178,166 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email']
 
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', max_length=150)
+    email = serializers.EmailField(source='user.email', allow_blank=True, required=False)
+    name = serializers.CharField(source='full_name', max_length=150, allow_blank=True, required=False)
+    profile_picture = serializers.ImageField(write_only=True, required=False)
+    profile_picture_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserProfile
+        fields = [
+            'username',
+            'name',
+            'email',
+            'phone',
+            'address',
+            'profile_picture',
+            'profile_picture_url',
+        ]
+
+    def validate_username(self, value):
+        username = value.strip()
+        if not username:
+            raise serializers.ValidationError("Enter a username.")
+        if any(char.isspace() for char in value):
+            raise serializers.ValidationError("Username cannot contain spaces.")
+
+        current_user = self.instance.user if self.instance else None
+        matches = User.objects.filter(username__iexact=username)
+        if current_user:
+            matches = matches.exclude(pk=current_user.pk)
+        if matches.exists():
+            raise serializers.ValidationError("This username is already taken.")
+        return username
+
+    def validate_profile_picture(self, image):
+        if image.size > 5 * 1024 * 1024:
+            raise serializers.ValidationError("Profile picture must be 5 MB or smaller.")
+        content_type = getattr(image, 'content_type', '')
+        if content_type and not content_type.startswith('image/'):
+            raise serializers.ValidationError("Upload a valid image file.")
+        return image
+
+    def get_profile_picture_url(self, obj):
+        return resolve_image_url(
+            obj.profile_picture,
+            self.context.get('request'),
+            width=400,
+        )
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', {})
+        picture = validated_data.pop('profile_picture', None)
+        previous_picture = str(instance.profile_picture) if instance.profile_picture else ''
+
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+
+        if user_data:
+            instance.user.username = user_data.get('username', instance.user.username)
+            instance.user.email = user_data.get('email', instance.user.email)
+            instance.user.save(update_fields=['username', 'email'])
+
+        if picture:
+            instance.profile_picture = self._save_profile_picture(picture, instance.user_id)
+
+        instance.save()
+        if picture and previous_picture:
+            self._delete_profile_picture(previous_picture)
+        return instance
+
+    def _save_profile_picture(self, picture, user_id):
+        safe_name = Path(picture.name).name
+        unique_name = f"{uuid4().hex}-{safe_name}"
+
+        if not settings.USE_CLOUDINARY_MEDIA:
+            storage = FileSystemStorage(location=settings.MEDIA_ROOT)
+            return storage.save(f"profile_pictures/{user_id}/{unique_name}", picture)
+
+        try:
+            uploaded = cloudinary.uploader.upload(
+                picture,
+                folder=f"profile_pictures/{user_id}",
+                resource_type='image',
+                use_filename=False,
+                unique_filename=True,
+                overwrite=False,
+            )
+        except Exception as exc:
+            raise serializers.ValidationError({
+                'profile_picture': f"Profile picture upload failed: {exc}",
+            }) from exc
+        return uploaded['public_id']
+
+    def _delete_profile_picture(self, picture_name):
+        try:
+            if settings.USE_CLOUDINARY_MEDIA:
+                cloudinary.uploader.destroy(picture_name, resource_type='image')
+            else:
+                storage = FileSystemStorage(location=settings.MEDIA_ROOT)
+                if storage.exists(picture_name):
+                    storage.delete(picture_name)
+        except Exception:
+            # A failed cleanup must not discard the newly saved profile picture.
+            pass
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_image = serializers.SerializerMethodField()
+    line_total = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrderItem
+        fields = [
+            'id',
+            'product',
+            'product_name',
+            'product_image',
+            'quantity',
+            'price',
+            'line_total',
+        ]
+
+    def get_product_image(self, obj):
+        return resolve_image_url(
+            obj.product.image,
+            self.context.get('request'),
+            width=320,
+        )
+
+    def get_line_total(self, obj):
+        return f"{obj.price * obj.quantity:.2f}"
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True, read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    item_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Order
+        fields = [
+            'id',
+            'created_at',
+            'updated_at',
+            'total_amount',
+            'status',
+            'status_display',
+            'recipient_name',
+            'phone',
+            'delivery_address',
+            'payment_method',
+            'item_count',
+            'items',
+        ]
+
+    def get_item_count(self, obj):
+        return sum(item.quantity for item in obj.items.all())
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     password2 = serializers.CharField(write_only=True)
@@ -194,6 +366,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         email = validated_data.get('email', '')
         password = validated_data['password']
         user = User.objects.create_user(username=username, email=email, password=password)
+        UserProfile.objects.create(user=user)
         return user
 
 class HeroBannerSerializer(serializers.ModelSerializer):
