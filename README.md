@@ -1,11 +1,12 @@
-# Winkelo - Full-Stack E-Commerce Platform
+# Winkelo - E-Commerce Platform
 
-Winkelo is a deployed e-commerce application built with a React frontend and a Django REST Framework backend. It covers the core storefront flow end to end: product discovery, account authentication, cart management, checkout, admin-managed merchandising, image delivery, and cloud deployment.
+<img src="https://img.shields.io/badge/license-Portfolio_Project-blue?style=flat-square" alt="License" align="middle"/>&nbsp;&nbsp;<a href="https://winkelo.netlify.app"><img src="https://img.shields.io/badge/status-Live-1B5E20?style=flat-square&labelColor=2B3137" alt="Status: Live" align="middle"/></a>&nbsp;&nbsp;<img src="https://img.shields.io/badge/Made_with-React-20232A?style=flat-square&logo=react&logoColor=61DAFB" alt="Made with React" align="middle"/>&nbsp;&nbsp;<img src="https://img.shields.io/badge/Made_with-Django-092E20?style=flat-square&logo=django&logoColor=white" alt="Made with Django" align="middle"/>&nbsp;&nbsp;<img src="https://img.shields.io/github/last-commit/shohagfaraji/react-django-ecommerce?style=flat-square&color=34495E&labelColor=2B3137" alt="Last commit" align="middle"/>
+
+Winkelo is an e-commerce application built with a React frontend and a Django REST Framework backend. It covers the core storefront flow end to end: product discovery, account authentication, cart management, checkout, admin-managed merchandising, image delivery, and cloud deployment.
 
 The project is intentionally split into a decoupled frontend and backend. React handles the customer experience, routing, responsive UI, and client-side performance details. Django REST Framework owns product data, authentication, cart persistence, order creation, caching, and media URL handling.
 
-**Live demo:** https://winkelo.netlify.app  
-**Backend API:** https://react-django-ecommerce-3cfu.onrender.com
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Visit_Site_%F0%9F%94%97-007A78?style=for-the-badge&logo=netlify&logoColor=white&labelColor=005F5D)](https://winkelo.netlify.app)&nbsp;&nbsp;[![Backend API](https://img.shields.io/badge/Backend_API-View_API_%F0%9F%94%97-187356?style=for-the-badge&logo=render&logoColor=white&labelColor=12533E)](https://react-django-ecommerce-3cfu.onrender.com)
 
 ![Winkelo responsive storefront preview](docs/images/winkelo-preview-banner.png)
 
@@ -13,13 +14,36 @@ The project is intentionally split into a decoupled frontend and backend. React 
 
 ---
 
+## Table of Contents
+
+- [At a Glance](#at-a-glance)
+- [Screenshots](#screenshots)
+- [Project Highlights](#project-highlights)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Core Features](#core-features)
+- [API Overview](#api-overview)
+- [Local Development](#local-development)
+- [Scripts](#scripts)
+- [Environment Variables](#environment-variables)
+- [What This Project Demonstrates](#what-this-project-demonstrates)
+- [Roadmap](#roadmap)
+- [License](#license)
+
+---
+
 ## At a Glance
 
-- **Frontend:** React 19, Vite, React Router, Tailwind CSS, React Icons
-- **Backend:** Django 5.1, Django REST Framework, Simple JWT, PostgreSQL
-- **Media:** Cloudinary-hosted product, category, and banner images
-- **Deployment:** Netlify frontend, Render backend, Supabase PostgreSQL
+- **Frontend:** <img src="https://img.shields.io/badge/-React_19-20232A?style=flat&logo=react&logoColor=61DAFB" valign="middle" style="margin:2px 4px 2px 0;"/> <img src="https://img.shields.io/badge/-Vite-646CFF?style=flat&logo=vite&logoColor=white" valign="middle" style="margin:2px 4px 2px 0;"/> <img src="https://img.shields.io/badge/-React_Router-CA4245?style=flat&logo=reactrouter&logoColor=white" valign="middle" style="margin:2px 4px 2px 0;"/> <img src="https://img.shields.io/badge/-Tailwind_CSS-1a1a1a?style=flat&logo=tailwindcss&logoColor=06B6D4" valign="middle" style="margin:2px 4px 2px 0;"/> <img src="https://img.shields.io/badge/-React_Icons-E91E63?style=flat&logo=react&logoColor=white" valign="middle" style="margin:2px 4px 2px 0;"/>
+
+- **Backend:** <img src="https://img.shields.io/badge/-Django_5.1-092E20?style=flat&logo=django&logoColor=white" valign="middle" style="margin:2px 4px 2px 0;"/> <img src="https://img.shields.io/badge/-DRF-A30000?style=flat&logo=django&logoColor=white" valign="middle" style="margin:2px 4px 2px 0;"/> <img src="https://img.shields.io/badge/-Simple_JWT-000000?style=flat&logo=jsonwebtokens&logoColor=white" valign="middle" style="margin:2px 4px 2px 0;"/> <img src="https://img.shields.io/badge/-PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white" valign="middle" style="margin:2px 4px 2px 0;"/>
+
+- **Media:** <img src="https://img.shields.io/badge/-Cloudinary-3448C5?style=flat&logo=cloudinary&logoColor=white" valign="middle" style="margin:2px 4px 2px 0;"/> Cloudinary-hosted product, category, and banner images
+
+- **Deployment:** <img src="https://img.shields.io/badge/-Netlify-1a1a1a?style=flat&logo=netlify&logoColor=00C7B7" valign="middle" style="margin:2px 4px 2px 0;"/> <img src="https://img.shields.io/badge/-Render-1a1a1a?style=flat&logo=render&logoColor=46E3B7" valign="middle" style="margin:2px 4px 2px 0;"/> <img src="https://img.shields.io/badge/-Supabase-1a1a1a?style=flat&logo=supabase&logoColor=3ECF8E" valign="middle" style="margin:2px 4px 2px 0;"/>
+
 - **Authentication:** JWT access/refresh tokens with protected checkout
+
 - **Commerce flow:** Browse products, compare items, manage cart, and place orders
 
 ---
@@ -59,34 +83,37 @@ The project is intentionally split into a decoupled frontend and backend. React 
 
 ### Frontend
 
-| Technology     | Purpose                                          |
-| -------------- | ------------------------------------------------ |
-| React 19       | Component-based UI                               |
-| Vite           | Frontend development server and production build |
-| React Router 7 | Client-side routing                              |
-| Tailwind CSS 4 | Utility-first styling                            |
-| React Icons    | Icon system                                      |
+<table>
+<tr><th>Technology</th><th>Purpose</th></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-React_19-20232A?style=flat&logo=react&logoColor=61DAFB" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Component-based UI</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-Vite-646CFF?style=flat&logo=vite&logoColor=white" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Frontend development server and production build</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-React_Router_7-CA4245?style=flat&logo=reactrouter&logoColor=white" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Client-side routing</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-Tailwind_CSS_4-1a1a1a?style=flat&logo=tailwindcss&logoColor=06B6D4" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Utility-first styling</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-React_Icons-E91E63?style=flat&logo=react&logoColor=white" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Icon system</span></td></tr>
+</table>
 
 ### Backend
 
-| Technology            | Purpose                                     |
-| --------------------- | ------------------------------------------- |
-| Django 5.1            | Backend application framework               |
-| Django REST Framework | REST API layer                              |
-| Simple JWT            | Access and refresh token authentication     |
-| PostgreSQL            | Relational data storage                     |
-| Cloudinary            | Media storage and delivery                  |
-| WhiteNoise            | Static file serving                         |
-| django-cors-headers   | Cross-origin frontend/backend communication |
+<table>
+<tr><th>Technology</th><th>Purpose</th></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-Django_5.1-092E20?style=flat&logo=django&logoColor=white" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Backend application framework</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-DRF-A30000?style=flat&logo=django&logoColor=white" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">REST API layer</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-Simple_JWT-000000?style=flat&logo=jsonwebtokens&logoColor=white" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Access and refresh token authentication</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Relational data storage</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-django--cors--headers-092E20?style=flat&logo=django&logoColor=white" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Cross-origin frontend/backend communication</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-WhiteNoise-000000?style=flat&logo=python&logoColor=white" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Static file serving</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-Cloudinary-3448C5?style=flat&logo=cloudinary&logoColor=white" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Media storage and delivery</span></td></tr>
+</table>
 
 ### Deployment
 
-| Service    | Role                         |
-| ---------- | ---------------------------- |
-| Netlify    | Frontend hosting             |
-| Render     | Backend API hosting          |
-| Supabase   | Hosted PostgreSQL database   |
-| Cloudinary | Product and storefront media |
+<table>
+<tr><th>Service</th><th>Role</th></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-Netlify-1a1a1a?style=flat&logo=netlify&logoColor=00C7B7" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Frontend hosting</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-Render-1a1a1a?style=flat&logo=render&logoColor=46E3B7" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Backend API hosting</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-Supabase-1a1a1a?style=flat&logo=supabase&logoColor=3ECF8E" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Hosted PostgreSQL database</span></td></tr>
+<tr><td valign="middle"><img src="https://img.shields.io/badge/-Cloudinary-3448C5?style=flat&logo=cloudinary&logoColor=white" style="margin-top:2px;"/></td><td valign="top"><span style="display:inline-block; margin-top:-10px;">Product and storefront media</span></td></tr>
+</table>
 
 ---
 
@@ -99,9 +126,9 @@ React + Vite Frontend
         v
 Django REST Framework API
         |
-        |-- PostgreSQL database
-        |-- Cloudinary media storage
-        |-- Django cache layer
+        ├── PostgreSQL database
+        ├── Cloudinary media storage
+        └── Django cache layer
 ```
 
 Backend responsibilities:
@@ -169,23 +196,23 @@ https://react-django-ecommerce-3cfu.onrender.com/api/
 
 | Method | Endpoint                            | Auth | Description                                                                      |
 | ------ | ----------------------------------- | ---- | -------------------------------------------------------------------------------- |
-| POST   | `/api/register/`                    | No   | Create a user account                                                            |
-| GET    | `/api/register/check-username/`     | No   | Check username availability                                                      |
-| POST   | `/api/token/`                       | No   | Log in and receive JWT tokens                                                    |
-| POST   | `/api/token/refresh/`               | No   | Refresh an access token                                                          |
-| GET    | `/api/homepage/`                    | No   | Fetch homepage banners, deals, hot products, and category sections               |
-| GET    | `/api/products/`                    | No   | List products with optional `category`, `section`, `search`, and `limit` filters |
-| GET    | `/api/product/<id>/`                | No   | Fetch product details                                                            |
-| GET    | `/api/products/new-arrivals/`       | No   | Fetch newest products                                                            |
-| GET    | `/api/products/weekly-top-selling/` | No   | Fetch weekly top-selling products                                                |
-| GET    | `/api/products/sale/`               | No   | Fetch products with discounts                                                    |
-| GET    | `/api/categories/`                  | No   | Fetch active category tree                                                       |
-| GET    | `/api/hero-banners/`                | No   | Fetch active homepage hero banners                                               |
-| GET    | `/api/cart/`                        | Yes  | Fetch the authenticated user's cart                                              |
-| POST   | `/api/cart/add/`                    | Yes  | Add a product to cart                                                            |
-| POST   | `/api/cart/update/`                 | Yes  | Update cart item quantity                                                        |
-| POST   | `/api/cart/remove/`                 | Yes  | Remove an item from cart                                                         |
-| POST   | `/api/orders/create/`               | Yes  | Create an order from the current cart                                            |
+| POST   | `/api/register/`                    | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | Create a user account                                                            |
+| GET    | `/api/register/check-username/`     | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | Check username availability                                                      |
+| POST   | `/api/token/`                       | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | Log in and receive JWT tokens                                                    |
+| POST   | `/api/token/refresh/`               | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | Refresh an access token                                                          |
+| GET    | `/api/homepage/`                    | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | Fetch homepage banners, deals, hot products, and category sections               |
+| GET    | `/api/products/`                    | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | List products with optional `category`, `section`, `search`, and `limit` filters |
+| GET    | `/api/product/<id>/`                | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | Fetch product details                                                            |
+| GET    | `/api/products/new-arrivals/`       | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | Fetch newest products                                                            |
+| GET    | `/api/products/weekly-top-selling/` | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | Fetch weekly top-selling products                                                |
+| GET    | `/api/products/sale/`               | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | Fetch products with discounts                                                    |
+| GET    | `/api/categories/`                  | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | Fetch active category tree                                                       |
+| GET    | `/api/hero-banners/`                | ![No](https://img.shields.io/badge/-No-424242?style=flat-square&logoColor=white)   | Fetch active homepage hero banners                                               |
+| GET    | `/api/cart/`                        | ![Yes](https://img.shields.io/badge/-Yes-1B5E20?style=flat-square&logoColor=white)  | Fetch the authenticated user's cart                                              |
+| POST   | `/api/cart/add/`                    | ![Yes](https://img.shields.io/badge/-Yes-1B5E20?style=flat-square&logoColor=white)  | Add a product to cart                                                            |
+| POST   | `/api/cart/update/`                 | ![Yes](https://img.shields.io/badge/-Yes-1B5E20?style=flat-square&logoColor=white)  | Update cart item quantity                                                        |
+| POST   | `/api/cart/remove/`                 | ![Yes](https://img.shields.io/badge/-Yes-1B5E20?style=flat-square&logoColor=white)  | Remove an item from cart                                                         |
+| POST   | `/api/orders/create/`               | ![Yes](https://img.shields.io/badge/-Yes-1B5E20?style=flat-square&logoColor=white)  | Create an order from the current cart                                            |
 
 ---
 
@@ -194,7 +221,7 @@ https://react-django-ecommerce-3cfu.onrender.com/api/
 ### Prerequisites
 
 - Python 3.12+
-- Node.js 18+
+- Node.js 20.19+ (or 22.12+)
 - PostgreSQL
 - Cloudinary account
 
