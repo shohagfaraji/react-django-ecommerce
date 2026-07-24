@@ -1,13 +1,32 @@
 const DEFAULT_STALE_MS = 5 * 60 * 1000;
 const apiCache = new Map();
 const preloadedImages = new Set();
+const pendingImagePreloads = new Map();
+const pendingRequests = new Map();
+const SESSION_PREFIX = "winkelo-api:";
 
 export function getCachedJson(cacheKey, staleMs = DEFAULT_STALE_MS) {
-    const cached = apiCache.get(cacheKey);
+    let cached = apiCache.get(cacheKey);
+
+    if (!cached) {
+        try {
+            const stored = sessionStorage.getItem(`${SESSION_PREFIX}${cacheKey}`);
+            cached = stored ? JSON.parse(stored) : undefined;
+            if (cached) apiCache.set(cacheKey, cached);
+        } catch {
+            // Fall back to the in-memory cache.
+        }
+    }
+
     if (!cached) return undefined;
 
     if (Date.now() - cached.cachedAt > staleMs) {
         apiCache.delete(cacheKey);
+        try {
+            sessionStorage.removeItem(`${SESSION_PREFIX}${cacheKey}`);
+        } catch {
+            // The in-memory entry is already removed.
+        }
         return undefined;
     }
 
@@ -15,10 +34,19 @@ export function getCachedJson(cacheKey, staleMs = DEFAULT_STALE_MS) {
 }
 
 export function setCachedJson(cacheKey, data) {
-    apiCache.set(cacheKey, {
+    const entry = {
         data,
         cachedAt: Date.now(),
-    });
+    };
+    apiCache.set(cacheKey, entry);
+
+    if (!cacheKey.startsWith("product:")) {
+        try {
+            sessionStorage.setItem(`${SESSION_PREFIX}${cacheKey}`, JSON.stringify(entry));
+        } catch {
+            // Keep the in-memory entry.
+        }
+    }
 }
 
 export async function fetchCachedJson(
@@ -28,12 +56,42 @@ export async function fetchCachedJson(
     const cached = getCachedJson(cacheKey);
     if (cached !== undefined) return cached;
 
-    const res = await fetch(url, { signal });
-    if (!res.ok) throw new Error(errorMessage);
+    // Deduplicate concurrent requests for the same cache key.
+    if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey);
 
-    const data = await res.json();
-    setCachedJson(cacheKey, data);
-    return data;
+    const request = fetch(url)
+        .then((res) => {
+            if (!res.ok) throw new Error(errorMessage);
+            return res.json();
+        })
+        .then((data) => {
+            setCachedJson(cacheKey, data);
+            return data;
+        })
+        .finally(() => pendingRequests.delete(cacheKey));
+
+    pendingRequests.set(cacheKey, request);
+    if (!signal) return request;
+    if (signal.aborted) {
+        throw new DOMException("The operation was aborted.", "AbortError");
+    }
+
+    return Promise.race([
+        request,
+        new Promise((_, reject) => {
+            signal.addEventListener(
+                "abort",
+                () =>
+                    reject(
+                        new DOMException(
+                            "The operation was aborted.",
+                            "AbortError",
+                        ),
+                    ),
+                { once: true },
+            );
+        }),
+    ]);
 }
 
 export function productCacheKey(productId) {
@@ -55,18 +113,19 @@ export function rememberProducts(products) {
 }
 
 export function preloadImage(src) {
-    if (!src || preloadedImages.has(src)) return;
+    if (!src || preloadedImages.has(src)) return Promise.resolve();
+    if (pendingImagePreloads.has(src)) return pendingImagePreloads.get(src);
 
-    preloadedImages.add(src);
-    const image = new Image();
-    image.onerror = () => preloadedImages.delete(src);
-    image.src = src;
-}
+    const preload = new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => {
+            preloadedImages.add(src);
+            resolve();
+        };
+        image.onerror = resolve;
+        image.src = src;
+    }).finally(() => pendingImagePreloads.delete(src));
 
-export function preloadProductImages(products, limit = 16) {
-    if (!Array.isArray(products)) return;
-
-    products.slice(0, limit).forEach((product) => {
-        preloadImage(product?.image_url || product?.product_image);
-    });
+    pendingImagePreloads.set(src, preload);
+    return preload;
 }

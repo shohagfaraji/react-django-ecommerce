@@ -133,9 +133,14 @@ function AccountSummary({ profile }) {
     return (
         <div className="flex items-center gap-4 border-b border-slate-100 px-2 pb-5">
             <img
-                src={profile.profile_picture_url || DEFAULT_AVATAR}
+                src={
+                    profile.profile_picture_thumbnail_url ||
+                    profile.profile_picture_url ||
+                    DEFAULT_AVATAR
+                }
                 alt={`${profile.username}'s profile`}
                 className="h-16 w-16 rounded-full border border-slate-200 object-cover"
+                decoding="async"
             />
             <div className="min-w-0">
                 <p className="truncate text-lg font-black text-slate-950">
@@ -322,6 +327,7 @@ function PersonalDetails({ profile, onProfileChanged }) {
                             src={preview}
                             alt="Profile preview"
                             className="h-28 w-28 rounded-full border-4 border-white object-cover shadow-sm"
+                            decoding="async"
                         />
                         <button
                             type="button"

@@ -4,7 +4,6 @@ import { FaBolt } from "react-icons/fa";
 import {
     fetchCachedJson,
     getCachedJson,
-    preloadProductImages,
     rememberProducts,
 } from "../utils/apiCache";
 
@@ -26,7 +25,6 @@ function SaleProducts() {
         if (cachedProducts) {
             setProducts(cachedProducts);
             rememberProducts(cachedProducts);
-            preloadProductImages(cachedProducts);
             setLoading(false);
         }
 
@@ -37,7 +35,6 @@ function SaleProducts() {
         })
             .then((data) => {
                 rememberProducts(data);
-                preloadProductImages(data);
                 setProducts(data);
                 setLoading(false);
             })

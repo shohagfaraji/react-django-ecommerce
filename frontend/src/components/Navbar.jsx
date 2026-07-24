@@ -64,7 +64,9 @@ function Navbar({ onMenuToggle }) {
 
                 setUsername(profile.username || "");
                 setProfilePicture(
-                    profile.profile_picture_url || DEFAULT_AVATAR,
+                    profile.profile_picture_avatar_url ||
+                        profile.profile_picture_url ||
+                        DEFAULT_AVATAR,
                 );
                 localStorage.setItem("username", profile.username || "");
             } catch {
@@ -205,6 +207,7 @@ function Navbar({ onMenuToggle }) {
                                     src={profilePicture}
                                     alt=""
                                     className="h-8 w-8 shrink-0 rounded-full border border-slate-200 object-cover"
+                                    decoding="async"
                                     onError={(event) => {
                                         event.currentTarget.onerror = null;
                                         event.currentTarget.src =

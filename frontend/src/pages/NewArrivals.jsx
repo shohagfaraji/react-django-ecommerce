@@ -4,7 +4,6 @@ import { FaFire } from "react-icons/fa";
 import {
     fetchCachedJson,
     getCachedJson,
-    preloadProductImages,
     rememberProducts,
 } from "../utils/apiCache";
 
@@ -26,7 +25,6 @@ function NewArrivals() {
         if (cachedProducts) {
             setProducts(cachedProducts);
             rememberProducts(cachedProducts);
-            preloadProductImages(cachedProducts);
             setLoading(false);
         }
 
@@ -37,7 +35,6 @@ function NewArrivals() {
         })
             .then((data) => {
                 rememberProducts(data);
-                preloadProductImages(data);
                 setProducts(data);
                 setLoading(false);
             })
