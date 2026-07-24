@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
     FaArrowRight,
@@ -15,11 +15,11 @@ import ProductCard from "../components/ProductCard.jsx";
 import {
     fetchCachedJson,
     getCachedJson,
-    preloadProductImages,
     rememberProducts,
 } from "../utils/apiCache";
 
 const loadedHeroImages = new Set();
+const HOME_CATEGORY_PRIORITY = ["clothing", "toys", "garden"];
 
 function ProductList() {
     const [searchParams] = useSearchParams();
@@ -43,7 +43,9 @@ function ProductList() {
     const [homeLoading, setHomeLoading] = useState(
         () => !getCachedJson("homepage"),
     );
+    const [newArrivalsNear, setNewArrivalsNear] = useState(false);
     const [error, setError] = useState(null);
+    const newArrivalsRef = useRef(null);
 
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
@@ -81,8 +83,11 @@ function ProductList() {
     }, [BASEURL, isFiltered]);
 
     useEffect(() => {
+        const shouldFetchProducts = isFiltered || newArrivalsNear;
+        if (!shouldFetchProducts) return undefined;
+
         const controller = new AbortController();
-        const params = new URLSearchParams({ limit: isFiltered ? "40" : "12" });
+        const params = new URLSearchParams({ limit: isFiltered ? "40" : "15" });
 
         if (category) params.set("category", category);
         if (search) params.set("search", search);
@@ -93,7 +98,6 @@ function ProductList() {
         if (cachedProducts) {
             setProducts(cachedProducts);
             rememberProducts(cachedProducts);
-            preloadProductImages(cachedProducts);
             setLoading(false);
         } else {
             setLoading(true);
@@ -107,7 +111,6 @@ function ProductList() {
         })
             .then((data) => {
                 rememberProducts(data);
-                preloadProductImages(data);
                 setProducts(data);
                 setLoading(false);
             })
@@ -119,7 +122,34 @@ function ProductList() {
             });
 
         return () => controller.abort();
-    }, [BASEURL, category, search, isFiltered]);
+    }, [
+        BASEURL,
+        category,
+        search,
+        isFiltered,
+        newArrivalsNear,
+    ]);
+
+    useEffect(() => {
+        if (isFiltered || newArrivalsNear) return undefined;
+
+        const target = newArrivalsRef.current;
+        if (!target || !("IntersectionObserver" in window)) {
+            setNewArrivalsNear(true);
+            return undefined;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry.isIntersecting) return;
+                setNewArrivalsNear(true);
+                observer.disconnect();
+            },
+            { rootMargin: "600px 0px" },
+        );
+        observer.observe(target);
+        return () => observer.disconnect();
+    }, [isFiltered, newArrivalsNear]);
 
     const title = useMemo(() => {
         if (search) return `Search results for "${search}"`;
@@ -158,7 +188,10 @@ function ProductList() {
                     <>
                         <HomeSlider
                             banners={homeData?.hero_banners || []}
-                            fallbackProducts={products.slice(0, 4)}
+                            fallbackProducts={getHomeProducts(homeData).slice(
+                                0,
+                                4,
+                            )}
                             loading={homeLoading}
                         />
 
@@ -170,6 +203,7 @@ function ProductList() {
                             loading={homeLoading}
                             viewAllLink="/sale"
                             emptyCopy="No discounted products right now."
+                            responsiveLayout="ten-product-shelf"
                         />
 
                         <ProductSection
@@ -180,17 +214,11 @@ function ProductList() {
                             loading={homeLoading}
                             viewAllLink="/weekly-top-selling"
                             emptyCopy="Top-selling products will appear here as your catalog grows."
+                            responsiveLayout="ten-product-shelf"
                         />
 
-                        {(homeData?.category_sections || [])
-                            .filter(
-                                (section) =>
-                                    section.category?.section !==
-                                        "electronics" &&
-                                    section.category?.slug !== "electronics",
-                            )
-                            .filter((section) => section.products?.length > 0)
-                            .map((section) => (
+                        {getPrioritizedCategorySections(homeData).map(
+                            (section) => (
                                 <ProductSection
                                     key={section.category.slug}
                                     title={section.category.name}
@@ -200,18 +228,23 @@ function ProductList() {
                                     loading={homeLoading}
                                     viewAllLink={`/products?category=${section.category.slug}`}
                                     emptyCopy=""
+                                    responsiveLayout="category-shelf"
                                 />
-                            ))}
+                            ),
+                        )}
 
-                        <ProductSection
-                            title="New Arrivals"
-                            eyebrow="Fresh in store"
-                            icon={<FaStar />}
-                            products={products}
-                            loading={loading}
-                            viewAllLink="/new-arrivals"
-                            emptyCopy="No products have been added yet."
-                        />
+                        <div ref={newArrivalsRef}>
+                            <ProductSection
+                                title="New Arrivals"
+                                eyebrow="Fresh in store"
+                                icon={<FaStar />}
+                                products={products}
+                                loading={loading}
+                                viewAllLink="/new-arrivals"
+                                emptyCopy="No products have been added yet."
+                                responsiveLayout="new-arrivals"
+                            />
+                        </div>
                     </>
                 )}
             </div>
@@ -220,7 +253,7 @@ function ProductList() {
 }
 
 function buildProductsCacheKey(category, search, isFiltered) {
-    const params = new URLSearchParams({ limit: isFiltered ? "40" : "12" });
+    const params = new URLSearchParams({ limit: isFiltered ? "40" : "15" });
 
     if (category) params.set("category", category);
     if (search) params.set("search", search);
@@ -229,6 +262,10 @@ function buildProductsCacheKey(category, search, isFiltered) {
 }
 
 function rememberHomeProducts(homeData) {
+    rememberProducts(getHomeProducts(homeData));
+}
+
+function getHomeProducts(homeData) {
     const sectionProducts =
         homeData?.category_sections?.flatMap(
             (section) => section.products || [],
@@ -239,8 +276,28 @@ function rememberHomeProducts(homeData) {
         ...sectionProducts,
     ];
 
-    rememberProducts(products);
-    preloadProductImages(products, 24);
+    return products;
+}
+
+function getPrioritizedCategorySections(homeData) {
+    const sections = (homeData?.category_sections || []).filter(
+        (section) =>
+            section.products?.length > 0 &&
+            section.category?.section !== "electronics" &&
+            section.category?.slug !== "electronics",
+    );
+
+    return [...sections].sort((left, right) => {
+        const leftKey = left.category?.section || left.category?.slug;
+        const rightKey = right.category?.section || right.category?.slug;
+        const leftRank = HOME_CATEGORY_PRIORITY.indexOf(leftKey);
+        const rightRank = HOME_CATEGORY_PRIORITY.indexOf(rightKey);
+
+        return (
+            (leftRank === -1 ? HOME_CATEGORY_PRIORITY.length : leftRank) -
+            (rightRank === -1 ? HOME_CATEGORY_PRIORITY.length : rightRank)
+        );
+    });
 }
 
 function HomeSlider({ banners, fallbackProducts, loading }) {
@@ -255,16 +312,6 @@ function HomeSlider({ banners, fallbackProducts, loading }) {
         }, 5000);
         return () => clearInterval(timer);
     }, [slides.length]);
-
-    useEffect(() => {
-        slides.slice(0, 3).forEach((slide) => {
-            if (!slide.image_url || loadedHeroImages.has(slide.image_url))
-                return;
-            const preview = new Image();
-            preview.onload = () => loadedHeroImages.add(slide.image_url);
-            preview.src = slide.image_url;
-        });
-    }, [slides]);
 
     useEffect(() => {
         setActive(0);
@@ -306,7 +353,10 @@ function HomeSlider({ banners, fallbackProducts, loading }) {
                 </div>
 
                 <div className="relative min-h-[300px] bg-slate-100">
-                    <SliderVisual image={slide.image_url} title={slide.title} />
+                    <SliderVisual
+                        image={slide.image_url}
+                        title={slide.title}
+                    />
 
                     {slides.length > 1 && (
                         <div className="absolute bottom-4 right-4 flex gap-2">
@@ -378,6 +428,7 @@ function SliderVisual({ image, title }) {
             revealImage();
         } else {
             const preview = new Image();
+            preview.fetchPriority = "high";
             setStatus(visibleImage ? "loading-next" : "loading");
 
             preview.onload = () => {
@@ -527,6 +578,7 @@ function ProductSection({
     loading,
     viewAllLink,
     emptyCopy,
+    responsiveLayout,
 }) {
     if (!loading && !products.length && !emptyCopy) return null;
 
@@ -557,11 +609,29 @@ function ProductSection({
 
             <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {loading
-                    ? Array.from({ length: 5 }).map((_, index) => (
-                          <SkeletonCard key={index} />
+                    ? Array.from({
+                          length: getSkeletonCount(responsiveLayout),
+                      }).map((_, index) => (
+                          <div
+                              key={index}
+                              className={getProductVisibilityClass(
+                                  responsiveLayout,
+                                  index,
+                              )}
+                          >
+                              <SkeletonCard />
+                          </div>
                       ))
-                    : products.map((product) => (
-                          <ProductCard key={product.id} product={product} />
+                    : products.map((product, index) => (
+                          <div
+                              key={product.id}
+                              className={getProductVisibilityClass(
+                                  responsiveLayout,
+                                  index,
+                              )}
+                          >
+                              <ProductCard product={product} />
+                          </div>
                       ))}
 
                 {!loading && products.length === 0 && (
@@ -570,6 +640,35 @@ function ProductSection({
             </div>
         </section>
     );
+}
+
+function getSkeletonCount(layout) {
+    if (layout === "new-arrivals") return 15;
+    if (layout === "ten-product-shelf" || layout === "category-shelf") {
+        return 10;
+    }
+    return 10;
+}
+
+function getProductVisibilityClass(layout, index) {
+    if (layout === "ten-product-shelf") {
+        if (index === 8) return "xl:hidden 2xl:block";
+        if (index === 9) return "lg:hidden 2xl:block";
+        if (index >= 10) return "hidden";
+    }
+
+    if (layout === "category-shelf") {
+        if (index >= 6 && index < 8) return "hidden xl:block";
+        if (index >= 8 && index < 10) return "hidden 2xl:block";
+        if (index >= 10) return "hidden";
+    }
+
+    if (layout === "new-arrivals") {
+        if (index >= 12 && index < 15) return "hidden 2xl:block";
+        if (index >= 15) return "hidden";
+    }
+
+    return "";
 }
 
 function HeroSkeleton() {

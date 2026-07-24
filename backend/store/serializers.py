@@ -154,6 +154,36 @@ class ProductSerializer(serializers.ModelSerializer):
         value = getattr(obj, 'review_count', None)
         return value if value is not None else obj.reviews.count()
 
+
+class ProductListSerializer(ProductSerializer):
+    """Compact product representation used by collection endpoints.
+
+    Product descriptions can be large and are only displayed on the detail
+    page. Excluding them keeps catalog and homepage responses small.
+    """
+
+    class Meta(ProductSerializer.Meta):
+        fields = [
+            'id',
+            'category',
+            'name',
+            'price',
+            'image_url',
+            'created_at',
+            'is_weekly_top',
+            'is_hot',
+            'is_featured',
+            'discount_percentage',
+            'active_discount',
+            'discounted_price',
+            'average_rating',
+            'review_count',
+        ]
+
+    def get_image_url(self, obj):
+        return resolve_image_url(obj.image, self.context.get('request'), width=640)
+
+
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
     product_price = serializers.DecimalField(source='product.price', max_digits=10, decimal_places=2, read_only=True)
@@ -199,6 +229,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source='user.email', allow_blank=True, required=False)
     name = serializers.CharField(source='full_name', max_length=150, allow_blank=True, required=False)
     profile_picture = serializers.ImageField(write_only=True, required=False)
+    profile_picture_avatar_url = serializers.SerializerMethodField()
+    profile_picture_thumbnail_url = serializers.SerializerMethodField()
     profile_picture_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -210,6 +242,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'phone',
             'address',
             'profile_picture',
+            'profile_picture_avatar_url',
+            'profile_picture_thumbnail_url',
             'profile_picture_url',
         ]
 
@@ -241,6 +275,22 @@ class UserProfileSerializer(serializers.ModelSerializer):
             obj.profile_picture,
             self.context.get('request'),
             width=400,
+        )
+
+    def get_profile_picture_avatar_url(self, obj):
+        """High-DPI source for the 32px navbar avatar."""
+        return resolve_image_url(
+            obj.profile_picture,
+            self.context.get('request'),
+            width=96,
+        )
+
+    def get_profile_picture_thumbnail_url(self, obj):
+        """High-DPI source for the 64px account summary avatar."""
+        return resolve_image_url(
+            obj.profile_picture,
+            self.context.get('request'),
+            width=160,
         )
 
     def update(self, instance, validated_data):

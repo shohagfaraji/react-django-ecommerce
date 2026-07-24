@@ -1,4 +1,7 @@
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -43,6 +46,48 @@ class ProductDiscountTests(TestCase):
         data = ProductSerializer(product).data
         self.assertEqual(data["active_discount"], 0)
         self.assertIsNone(data["discounted_price"])
+
+
+class HomepageTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        Category.objects.update(is_featured=False)
+        self.category = Category.objects.create(
+            name="Test Home Clothing",
+            slug="test-home-clothing",
+            section="clothing",
+            is_featured=True,
+        )
+
+    def test_category_shelf_fills_remaining_slots_after_featured_products(self):
+        regular_products = [
+            make_product(self.category, name=f"Regular {index}")
+            for index in range(10)
+        ]
+        featured_products = [
+            make_product(
+                self.category,
+                name=f"Featured {index}",
+                is_featured=True,
+            )
+            for index in range(2)
+        ]
+
+        res = self.client.get("/api/homepage/")
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        shelf_products = res.data["category_sections"][0]["products"]
+        self.assertEqual(len(shelf_products), 10)
+        self.assertEqual(
+            [product["id"] for product in shelf_products[:2]],
+            [product.id for product in reversed(featured_products)],
+        )
+        self.assertTrue(
+            any(
+                product["id"] in {regular.id for regular in regular_products}
+                for product in shelf_products
+            )
+        )
 
 
 class AuthTests(APITestCase):
@@ -421,6 +466,28 @@ class ProfileTests(APITestCase):
         self.assertEqual(res.data["phone"], "")
         self.assertEqual(res.data["address"], "")
         self.assertTrue(UserProfile.objects.filter(user=self.user).exists())
+
+    @patch('store.serializers.resolve_image_url')
+    def test_profile_returns_image_variants_for_each_display_size(self, resolve_url):
+        resolve_url.side_effect = (
+            lambda image, request, width: f"https://images.example/avatar-{width}.webp"
+        )
+
+        res = self.client.get("/api/profile/")
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            res.data["profile_picture_avatar_url"],
+            "https://images.example/avatar-96.webp",
+        )
+        self.assertEqual(
+            res.data["profile_picture_thumbnail_url"],
+            "https://images.example/avatar-160.webp",
+        )
+        self.assertEqual(
+            res.data["profile_picture_url"],
+            "https://images.example/avatar-400.webp",
+        )
 
     def test_profile_update_changes_user_and_profile_fields(self):
         res = self.client.patch(

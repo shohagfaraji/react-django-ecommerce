@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 from .models import Product, Category, Cart, CartItem, Order, OrderItem, HeroBanner, UserProfile, Review, ReviewImage
-from .serializers import ProductSerializer, CategorySerializer, CategorySummarySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, HeroBannerSerializer, UserProfileSerializer, OrderSerializer, ReviewSerializer
+from .serializers import ProductSerializer, ProductListSerializer, CategorySerializer, CategorySummarySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, HeroBannerSerializer, UserProfileSerializer, OrderSerializer, ReviewSerializer
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Avg, Count, Prefetch, Q
@@ -114,7 +114,7 @@ def get_products(request):
     cache_key = f"products:{request.GET.urlencode()}"
     data = cached_api_data(
         cache_key,
-        lambda: ProductSerializer(products, many=True, context={'request': request}).data,
+        lambda: ProductListSerializer(products, many=True, context={'request': request}).data,
         timeout=180,
     )
     return Response(data)
@@ -559,7 +559,7 @@ def get_weekly_top_selling(request):
     ).order_by('-created_at')
     data = cached_api_data(
         "products:weekly-top-selling",
-        lambda: ProductSerializer(products, many=True, context={'request': request}).data,
+        lambda: ProductListSerializer(products, many=True, context={'request': request}).data,
         timeout=300,
     )
     return Response(data)
@@ -571,7 +571,7 @@ def get_new_arrivals(request):
     products = with_ratings(Product.objects.select_related('category')).order_by('-created_at')
     data = cached_api_data(
         "products:new-arrivals",
-        lambda: ProductSerializer(products, many=True, context={'request': request}).data,
+        lambda: ProductListSerializer(products, many=True, context={'request': request}).data,
         timeout=180,
     )
     return Response(data)
@@ -584,7 +584,7 @@ def get_sale_products(request):
     ).order_by('-discount_percentage', '-created_at')
     data = cached_api_data(
         "products:sale",
-        lambda: ProductSerializer(products, many=True, context={'request': request}).data,
+        lambda: ProductListSerializer(products, many=True, context={'request': request}).data,
         timeout=120,
     )
     return Response(data)
@@ -642,29 +642,37 @@ def get_homepage(request):
         category_sections = []
         for category in featured_categories:
             child_ids = [child.id for child in category.children.all()]
-            products = with_ratings(Product.objects.select_related('category', 'category__parent')).filter(
+            category_products = with_ratings(
+                Product.objects.select_related('category', 'category__parent')
+            ).filter(
                 Q(category=category) | Q(category_id__in=child_ids)
-            ).filter(is_featured=True).order_by('-created_at')[:6]
+            )
+            products = list(
+                category_products.filter(is_featured=True)
+                .order_by('-created_at')[:10]
+            )
 
-            if not products:
-                products = with_ratings(Product.objects.select_related('category', 'category__parent')).filter(
-                    Q(category=category) | Q(category_id__in=child_ids)
-                ).order_by('-created_at')[:6]
+            if len(products) < 10:
+                featured_ids = [product.id for product in products]
+                products.extend(
+                    category_products.exclude(id__in=featured_ids)
+                    .order_by('-created_at')[:10 - len(products)]
+                )
 
             category_sections.append({
                 'category': CategorySummarySerializer(category, context={'request': request}).data,
-                'products': ProductSerializer(products, many=True, context={'request': request}).data,
+                'products': ProductListSerializer(products, many=True, context={'request': request}).data,
             })
 
         return {
             'hero_banners': HeroBannerSerializer(hero_banners, many=True, context={'request': request}).data,
-            'offer_products': ProductSerializer(deal_products, many=True, context={'request': request}).data,
-            'hot_products': ProductSerializer(hot_products, many=True, context={'request': request}).data,
+            'offer_products': ProductListSerializer(deal_products, many=True, context={'request': request}).data,
+            'hot_products': ProductListSerializer(hot_products, many=True, context={'request': request}).data,
             'featured_products': [],
             'category_sections': category_sections,
         }
 
-    data = cached_api_data("homepage:v1", build_homepage_data, timeout=120)
+    data = cached_api_data("homepage:v3", build_homepage_data, timeout=120)
     return Response(data)
 
 @api_view(['POST'])
