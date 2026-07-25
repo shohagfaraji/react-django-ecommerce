@@ -73,7 +73,8 @@ class HomepageTests(APITestCase):
             for index in range(2)
         ]
 
-        res = self.client.get("/api/homepage/")
+        with self.assertNumQueries(6):
+            res = self.client.get("/api/homepage/")
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         shelf_products = res.data["category_sections"][0]["products"]
@@ -88,6 +89,30 @@ class HomepageTests(APITestCase):
                 for product in shelf_products
             )
         )
+
+
+class CategoryQueryTests(APITestCase):
+    def test_category_tree_uses_one_database_query(self):
+        cache.clear()
+        parent = Category.objects.create(
+            name="Query Test Parent",
+            slug="query-test-parent",
+        )
+        child = Category.objects.create(
+            name="Query Test Child",
+            slug="query-test-child",
+            parent=parent,
+        )
+        Category.objects.create(
+            name="Query Test Grandchild",
+            slug="query-test-grandchild",
+            parent=child,
+        )
+
+        with self.assertNumQueries(1):
+            response = self.client.get("/api/categories/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class AuthTests(APITestCase):
@@ -321,6 +346,9 @@ class ReviewTests(APITestCase):
         self.assertEqual(review.user, self.user)
         self.assertEqual(review.product, self.product)
         self.assertEqual(review.rating, 5)
+        self.product.refresh_from_db()
+        self.assertEqual(float(self.product.average_rating), 5.0)
+        self.assertEqual(self.product.review_count, 1)
 
     def test_item_cannot_be_reviewed_before_delivery(self):
         self.order.status = Order.STATUS_SHIPPED
@@ -410,6 +438,9 @@ class ReviewTests(APITestCase):
         review.refresh_from_db()
         self.assertEqual(review.rating, 5)
         self.assertEqual(review.comment, "Much better")
+        self.product.refresh_from_db()
+        self.assertEqual(float(self.product.average_rating), 5.0)
+        self.assertEqual(self.product.review_count, 1)
 
     def test_other_customer_cannot_update_or_delete_review(self):
         review = Review.objects.create(
@@ -443,6 +474,9 @@ class ReviewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Review.objects.filter(pk=review.id).exists())
+        self.product.refresh_from_db()
+        self.assertEqual(float(self.product.average_rating), 0.0)
+        self.assertEqual(self.product.review_count, 0)
         order_response = self.client.get(f"/api/orders/{self.order.id}/")
         self.assertTrue(order_response.data["items"][0]["can_review"])
 

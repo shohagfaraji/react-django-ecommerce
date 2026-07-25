@@ -6,7 +6,7 @@ from .models import Product, Category, Cart, CartItem, Order, OrderItem, HeroBan
 from .serializers import ProductSerializer, ProductListSerializer, CategorySerializer, CategorySummarySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, HeroBannerSerializer, UserProfileSerializer, OrderSerializer, ReviewSerializer
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Avg, Count, Prefetch, Q
+from django.db.models import Prefetch, Q
 from django.core.cache import cache
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -18,7 +18,7 @@ import os
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
-from .cache_utils import bump_store_cache_version, store_cache_key
+from .cache_utils import store_cache_key
 
 
 def cached_api_data(key, factory, timeout=300):
@@ -28,13 +28,6 @@ def cached_api_data(key, factory, timeout=300):
         data = factory()
         cache.set(versioned_key, data, timeout)
     return data
-
-
-def with_ratings(queryset):
-    return queryset.annotate(
-        average_rating=Avg('reviews__rating'),
-        review_count=Count('reviews', distinct=True),
-    )
 
 
 @api_view(['POST'])
@@ -85,7 +78,7 @@ def get_products(request):
     search_query = request.GET.get('search')
     limit = request.GET.get('limit')
 
-    products = with_ratings(Product.objects.select_related('category')).order_by('-created_at')
+    products = Product.objects.select_related('category').order_by('-created_at')
 
     if category_slug:
         category = Category.objects.filter(slug__iexact=category_slug).first()
@@ -122,8 +115,9 @@ def get_products(request):
 @api_view(['GET'])
 def get_product(request, pk):
     try:
-        product = with_ratings(
-            Product.objects.select_related('category', 'category__parent')
+        product = Product.objects.select_related(
+            'category',
+            'category__parent',
         ).get(id=pk)
         serializer = ProductSerializer(product, context={'request': request})
         return Response(serializer.data)
@@ -132,12 +126,33 @@ def get_product(request, pk):
 
 @api_view(['GET'])
 def get_categories(request):
+    def build_category_data():
+        categories = list(
+            Category.objects.filter(is_active=True)
+            .order_by('sort_order', 'name')
+        )
+        children_by_parent = {}
+        roots = []
+        for category in categories:
+            if category.parent_id is None:
+                roots.append(category)
+            else:
+                children_by_parent.setdefault(category.parent_id, []).append(
+                    category
+                )
+
+        return CategorySerializer(
+            roots,
+            many=True,
+            context={
+                'request': request,
+                'children_by_parent': children_by_parent,
+            },
+        ).data
+
     data = cached_api_data(
         "categories:all",
-        lambda: CategorySerializer(
-            Category.objects.filter(parent__isnull=True, is_active=True).prefetch_related('children').order_by('sort_order', 'name'),
-            many=True,
-        ).data,
+        build_category_data,
         timeout=600,
     )
     return Response(data)
@@ -438,7 +453,6 @@ def create_review(request):
                 image_name = storage.save(f"reviews/{review.id}/{safe_name}", image)
             ReviewImage.objects.create(review=review, image=image_name)
 
-    bump_store_cache_version()
     return Response(
         ReviewSerializer(review, context={'request': request}).data,
         status=status.HTTP_201_CREATED,
@@ -459,7 +473,6 @@ def review_detail(request, pk):
             transaction.on_commit(
                 lambda: [_delete_review_image(name) for name in image_names]
             )
-        bump_store_cache_version()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     try:
@@ -496,7 +509,6 @@ def review_detail(request, pk):
                 image_name = storage.save(f"reviews/{review.id}/{safe_name}", image)
             ReviewImage.objects.create(review=review, image=image_name)
 
-    bump_store_cache_version()
     return Response(ReviewSerializer(review, context={'request': request}).data)
 
 
@@ -554,9 +566,9 @@ def _delete_profile_picture(picture_name):
 @api_view(['GET'])
 def get_weekly_top_selling(request):
     """Returns products marked as Weekly Top Selling by admin."""
-    products = with_ratings(
-        Product.objects.filter(is_weekly_top=True).select_related('category')
-    ).order_by('-created_at')
+    products = Product.objects.filter(
+        is_weekly_top=True,
+    ).select_related('category').order_by('-created_at')
     data = cached_api_data(
         "products:weekly-top-selling",
         lambda: ProductListSerializer(products, many=True, context={'request': request}).data,
@@ -568,7 +580,7 @@ def get_weekly_top_selling(request):
 @api_view(['GET'])
 def get_new_arrivals(request):
     """Returns all products ordered by newest first."""
-    products = with_ratings(Product.objects.select_related('category')).order_by('-created_at')
+    products = Product.objects.select_related('category').order_by('-created_at')
     data = cached_api_data(
         "products:new-arrivals",
         lambda: ProductListSerializer(products, many=True, context={'request': request}).data,
@@ -579,7 +591,7 @@ def get_new_arrivals(request):
 @api_view(['GET'])
 def get_sale_products(request):
     """Returns products with a product-level discount."""
-    products = with_ratings(Product.objects.select_related('category')).filter(
+    products = Product.objects.select_related('category').filter(
         discount_percentage__gt=0,
     ).order_by('-discount_percentage', '-created_at')
     data = cached_api_data(
@@ -620,11 +632,11 @@ def get_homepage(request):
             Q(ends_at__isnull=True) | Q(ends_at__gte=now),
         ).order_by('sort_order', '-created_at')[:8]
 
-        deal_products = with_ratings(Product.objects.select_related('category', 'category__parent')).filter(
+        deal_products = Product.objects.select_related('category').filter(
             discount_percentage__gt=0,
         ).order_by('-discount_percentage', '-created_at')[:10]
 
-        hot_products = with_ratings(Product.objects.select_related('category', 'category__parent')).filter(
+        hot_products = Product.objects.select_related('category').filter(
             Q(is_hot=True) | Q(is_weekly_top=True)
         ).order_by('-is_hot', '-is_weekly_top', '-created_at')[:10]
 
@@ -642,22 +654,15 @@ def get_homepage(request):
         category_sections = []
         for category in featured_categories:
             child_ids = [child.id for child in category.children.all()]
-            category_products = with_ratings(
-                Product.objects.select_related('category', 'category__parent')
+            category_products = Product.objects.select_related(
+                'category'
             ).filter(
                 Q(category=category) | Q(category_id__in=child_ids)
             )
-            products = list(
-                category_products.filter(is_featured=True)
-                .order_by('-created_at')[:10]
-            )
-
-            if len(products) < 10:
-                featured_ids = [product.id for product in products]
-                products.extend(
-                    category_products.exclude(id__in=featured_ids)
-                    .order_by('-created_at')[:10 - len(products)]
-                )
+            products = category_products.order_by(
+                '-is_featured',
+                '-created_at',
+            )[:10]
 
             category_sections.append({
                 'category': CategorySummarySerializer(category, context={'request': request}).data,
@@ -672,7 +677,7 @@ def get_homepage(request):
             'category_sections': category_sections,
         }
 
-    data = cached_api_data("homepage:v3", build_homepage_data, timeout=120)
+    data = cached_api_data("homepage:v4", build_homepage_data, timeout=300)
     return Response(data)
 
 @api_view(['POST'])

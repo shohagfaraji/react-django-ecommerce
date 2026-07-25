@@ -6,7 +6,6 @@ import cloudinary.uploader
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files.storage import FileSystemStorage
-from django.db.models import Avg
 from rest_framework import serializers
 from .models import (
     Product,
@@ -100,6 +99,15 @@ class CategorySerializer(serializers.ModelSerializer):
         return resolve_image_url(obj.image, self.context.get('request'), width=320)
 
     def get_children(self, obj):
+        children_by_parent = self.context.get('children_by_parent')
+        if children_by_parent is not None:
+            children = children_by_parent.get(obj.id, [])
+            return CategorySerializer(
+                children,
+                many=True,
+                context=self.context,
+            ).data
+
         prefetched_children = getattr(obj, '_prefetched_objects_cache', {}).get('children')
         if prefetched_children is not None:
             children = [child for child in prefetched_children if child.is_active]
@@ -122,8 +130,8 @@ class ProductSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
     active_discount = serializers.SerializerMethodField()
     discounted_price = serializers.SerializerMethodField()
-    average_rating = serializers.SerializerMethodField()
-    review_count = serializers.SerializerMethodField()
+    average_rating = serializers.FloatField(read_only=True)
+    review_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Product
@@ -143,17 +151,6 @@ class ProductSerializer(serializers.ModelSerializer):
             sale = Decimal(str(obj.price)) * (1 - Decimal(discount) / 100)
             return str(sale.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         return None
-
-    def get_average_rating(self, obj):
-        value = getattr(obj, 'average_rating', None)
-        if value is None:
-            value = obj.reviews.aggregate(value=Avg('rating'))['value']
-        return round(float(value), 1) if value is not None else 0
-
-    def get_review_count(self, obj):
-        value = getattr(obj, 'review_count', None)
-        return value if value is not None else obj.reviews.count()
-
 
 class ProductListSerializer(ProductSerializer):
     """Compact product representation used by collection endpoints.

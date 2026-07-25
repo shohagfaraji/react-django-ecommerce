@@ -61,6 +61,13 @@ class Product(models.Model):
         default=0,
         help_text="Discount % for this product (0 = no discount)."
     )
+    average_rating = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=0,
+        editable=False,
+    )
+    review_count = models.PositiveIntegerField(default=0, editable=False)
 
     class Meta:
         indexes = [
@@ -71,6 +78,22 @@ class Product(models.Model):
             models.Index(fields=['is_weekly_top']),
             models.Index(fields=['discount_percentage']),
             models.Index(fields=['is_hot', 'is_weekly_top']),
+            models.Index(
+                fields=['category', '-is_featured', '-created_at'],
+                name='store_prod_cat_feat_new_idx',
+            ),
+            models.Index(
+                fields=['-discount_percentage', '-created_at'],
+                name='store_prod_sale_new_idx',
+            ),
+            models.Index(
+                fields=['is_hot', '-created_at'],
+                name='store_prod_hot_new_idx',
+            ),
+            models.Index(
+                fields=['is_weekly_top', '-created_at'],
+                name='store_prod_week_new_idx',
+            ),
         ]
 
     def __str__(self):
