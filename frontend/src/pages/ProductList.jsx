@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
     FaArrowRight,
@@ -43,9 +43,9 @@ function ProductList() {
     const [homeLoading, setHomeLoading] = useState(
         () => !getCachedJson("homepage"),
     );
-    const [newArrivalsNear, setNewArrivalsNear] = useState(false);
-    const [error, setError] = useState(null);
-    const newArrivalsRef = useRef(null);
+    const [newArrivalsRequested, setNewArrivalsRequested] = useState(false);
+    const [homeError, setHomeError] = useState(null);
+    const [productsError, setProductsError] = useState(null);
 
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
@@ -68,13 +68,14 @@ function ProductList() {
             signal: controller.signal,
         })
             .then((data) => {
+                setHomeError(null);
                 setHomeData(data);
                 rememberHomeProducts(data);
                 setHomeLoading(false);
             })
             .catch((err) => {
                 if (err.name !== "AbortError") {
-                    setError(err.message);
+                    setHomeError(err.message);
                     setHomeLoading(false);
                 }
             });
@@ -83,7 +84,7 @@ function ProductList() {
     }, [BASEURL, isFiltered]);
 
     useEffect(() => {
-        const shouldFetchProducts = isFiltered || newArrivalsNear;
+        const shouldFetchProducts = isFiltered || newArrivalsRequested;
         if (!shouldFetchProducts) return undefined;
 
         const controller = new AbortController();
@@ -102,7 +103,6 @@ function ProductList() {
         } else {
             setLoading(true);
         }
-        setError(null);
 
         fetchCachedJson(`${BASEURL}/api/products/?${params.toString()}`, {
             cacheKey,
@@ -110,13 +110,14 @@ function ProductList() {
             signal: controller.signal,
         })
             .then((data) => {
+                setProductsError(null);
                 rememberProducts(data);
                 setProducts(data);
                 setLoading(false);
             })
             .catch((err) => {
                 if (err.name !== "AbortError") {
-                    setError(err.message);
+                    setProductsError(err.message);
                     setLoading(false);
                 }
             });
@@ -127,29 +128,33 @@ function ProductList() {
         category,
         search,
         isFiltered,
-        newArrivalsNear,
+        newArrivalsRequested,
     ]);
 
     useEffect(() => {
-        if (isFiltered || newArrivalsNear) return undefined;
-
-        const target = newArrivalsRef.current;
-        if (!target || !("IntersectionObserver" in window)) {
-            setNewArrivalsNear(true);
+        if (isFiltered || homeLoading || newArrivalsRequested) {
             return undefined;
         }
 
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (!entry.isIntersecting) return;
-                setNewArrivalsNear(true);
-                observer.disconnect();
-            },
-            { rootMargin: "600px 0px" },
-        );
-        observer.observe(target);
-        return () => observer.disconnect();
-    }, [isFiltered, newArrivalsNear]);
+        let idleId;
+        const delayId = window.setTimeout(() => {
+            if ("requestIdleCallback" in window) {
+                idleId = window.requestIdleCallback(
+                    () => setNewArrivalsRequested(true),
+                    { timeout: 750 },
+                );
+            } else {
+                setNewArrivalsRequested(true);
+            }
+        }, 250);
+
+        return () => {
+            window.clearTimeout(delayId);
+            if (idleId !== undefined && "cancelIdleCallback" in window) {
+                window.cancelIdleCallback(idleId);
+            }
+        };
+    }, [homeLoading, isFiltered, newArrivalsRequested]);
 
     const title = useMemo(() => {
         if (search) return `Search results for "${search}"`;
@@ -157,10 +162,12 @@ function ProductList() {
         return "New arrivals";
     }, [category, search]);
 
-    if (error) {
+    const pageError = isFiltered ? productsError : homeError;
+
+    if (pageError) {
         return (
             <main className="min-h-screen bg-[#f6f7f9] px-4 pt-40 text-center text-rose-600">
-                {error}
+                {pageError}
             </main>
         );
     }
@@ -228,23 +235,25 @@ function ProductList() {
                                     loading={homeLoading}
                                     viewAllLink={`/products?category=${section.category.slug}`}
                                     emptyCopy=""
-                                    responsiveLayout="category-shelf"
+                                    responsiveLayout={getCategoryLayout(
+                                        section,
+                                    )}
                                 />
                             ),
                         )}
 
-                        <div ref={newArrivalsRef}>
+                        {!loading && !productsError && (
                             <ProductSection
                                 title="New Arrivals"
                                 eyebrow="Fresh in store"
                                 icon={<FaStar />}
                                 products={products}
-                                loading={loading}
+                                loading={false}
                                 viewAllLink="/new-arrivals"
                                 emptyCopy="No products have been added yet."
                                 responsiveLayout="new-arrivals"
                             />
-                        </div>
+                        )}
                     </>
                 )}
             </div>
@@ -298,6 +307,14 @@ function getPrioritizedCategorySections(homeData) {
             (rightRank === -1 ? HOME_CATEGORY_PRIORITY.length : rightRank)
         );
     });
+}
+
+function getCategoryLayout(section) {
+    const categoryKey =
+        section.category?.section || section.category?.slug;
+    return categoryKey === "toys"
+        ? "ten-product-shelf"
+        : "category-shelf";
 }
 
 function HomeSlider({ banners, fallbackProducts, loading }) {
