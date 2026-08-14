@@ -1,3 +1,4 @@
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from uuid import uuid4
 from urllib.parse import urlparse
@@ -144,21 +145,13 @@ class ProductSerializer(serializers.ModelSerializer):
         return obj.discount_percentage if obj.discount_percentage > 0 else 0
 
     def get_discounted_price(self, obj):
-        """Returns the sale price if offer is active, else None."""
         discount = self.get_active_discount(obj)
         if discount > 0:
-            from decimal import Decimal, ROUND_HALF_UP
             sale = Decimal(str(obj.price)) * (1 - Decimal(discount) / 100)
             return str(sale.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         return None
 
 class ProductListSerializer(ProductSerializer):
-    """Compact product representation used by collection endpoints.
-
-    Product descriptions can be large and are only displayed on the detail
-    page. Excluding them keeps catalog and homepage responses small.
-    """
-
     class Meta(ProductSerializer.Meta):
         fields = [
             'id',
@@ -202,7 +195,6 @@ class CartItemSerializer(serializers.ModelSerializer):
     def get_product_discounted_price(self, obj):
         discount = self.get_product_active_discount(obj)
         if discount > 0:
-            from decimal import Decimal, ROUND_HALF_UP
             sale = Decimal(str(obj.product.price)) * (1 - Decimal(discount) / 100)
             return str(sale.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         return None
@@ -275,7 +267,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
         )
 
     def get_profile_picture_avatar_url(self, obj):
-        """High-DPI source for the 32px navbar avatar."""
         return resolve_image_url(
             obj.profile_picture,
             self.context.get('request'),
@@ -283,7 +274,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
         )
 
     def get_profile_picture_thumbnail_url(self, obj):
-        """High-DPI source for the 64px account summary avatar."""
         return resolve_image_url(
             obj.profile_picture,
             self.context.get('request'),

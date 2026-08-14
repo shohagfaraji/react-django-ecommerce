@@ -14,7 +14,7 @@ export function getCachedJson(cacheKey, staleMs = DEFAULT_STALE_MS) {
             cached = stored ? JSON.parse(stored) : undefined;
             if (cached) apiCache.set(cacheKey, cached);
         } catch {
-            // Fall back to the in-memory cache.
+            return undefined;
         }
     }
 
@@ -25,7 +25,7 @@ export function getCachedJson(cacheKey, staleMs = DEFAULT_STALE_MS) {
         try {
             sessionStorage.removeItem(`${SESSION_PREFIX}${cacheKey}`);
         } catch {
-            // The in-memory entry is already removed.
+            return undefined;
         }
         return undefined;
     }
@@ -44,7 +44,7 @@ export function setCachedJson(cacheKey, data) {
         try {
             sessionStorage.setItem(`${SESSION_PREFIX}${cacheKey}`, JSON.stringify(entry));
         } catch {
-            // Keep the in-memory entry.
+            return;
         }
     }
 }
@@ -56,7 +56,6 @@ export async function fetchCachedJson(
     const cached = getCachedJson(cacheKey);
     if (cached !== undefined) return cached;
 
-    // Deduplicate concurrent requests for the same cache key.
     if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey);
 
     const request = fetch(url)

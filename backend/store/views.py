@@ -13,6 +13,7 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from decimal import Decimal, ROUND_HALF_UP
+from uuid import uuid4
 import cloudinary.uploader
 import os
 from django.contrib.auth import authenticate
@@ -441,17 +442,7 @@ def create_review(request):
             rating=rating,
             comment=comment,
         )
-        for image in images:
-            safe_name = f"{__import__('uuid').uuid4().hex}-{os.path.basename(image.name)}"
-            if settings.USE_CLOUDINARY_MEDIA:
-                uploaded = cloudinary.uploader.upload(
-                    image, folder=f"reviews/{review.id}", resource_type='image'
-                )
-                image_name = uploaded['public_id']
-            else:
-                storage = FileSystemStorage(location=settings.MEDIA_ROOT)
-                image_name = storage.save(f"reviews/{review.id}/{safe_name}", image)
-            ReviewImage.objects.create(review=review, image=image_name)
+        _save_review_images(review, images)
 
     return Response(
         ReviewSerializer(review, context={'request': request}).data,
@@ -470,9 +461,7 @@ def review_detail(request, pk):
         image_names = [str(image.image) for image in review.images.all()]
         with transaction.atomic():
             review.delete()
-            transaction.on_commit(
-                lambda: [_delete_review_image(name) for name in image_names]
-            )
+            transaction.on_commit(lambda: _delete_review_images(image_names))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     try:
@@ -497,17 +486,7 @@ def review_detail(request, pk):
         review.rating = rating
         review.comment = comment
         review.save(update_fields=['rating', 'comment'])
-        for image in images:
-            safe_name = f"{__import__('uuid').uuid4().hex}-{os.path.basename(image.name)}"
-            if settings.USE_CLOUDINARY_MEDIA:
-                uploaded = cloudinary.uploader.upload(
-                    image, folder=f"reviews/{review.id}", resource_type='image'
-                )
-                image_name = uploaded['public_id']
-            else:
-                storage = FileSystemStorage(location=settings.MEDIA_ROOT)
-                image_name = storage.save(f"reviews/{review.id}/{safe_name}", image)
-            ReviewImage.objects.create(review=review, image=image_name)
+        _save_review_images(review, images)
 
     return Response(ReviewSerializer(review, context={'request': request}).data)
 
@@ -522,6 +501,30 @@ def _delete_review_image(image_name):
                 storage.delete(image_name)
     except Exception:
         pass
+
+
+def _delete_review_images(image_names):
+    for image_name in image_names:
+        _delete_review_image(image_name)
+
+
+def _save_review_images(review, images):
+    for image in images:
+        safe_name = f"{uuid4().hex}-{os.path.basename(image.name)}"
+        if settings.USE_CLOUDINARY_MEDIA:
+            uploaded = cloudinary.uploader.upload(
+                image,
+                folder=f"reviews/{review.id}",
+                resource_type='image',
+            )
+            image_name = uploaded['public_id']
+        else:
+            storage = FileSystemStorage(location=settings.MEDIA_ROOT)
+            image_name = storage.save(
+                f"reviews/{review.id}/{safe_name}",
+                image,
+            )
+        ReviewImage.objects.create(review=review, image=image_name)
 
 
 @api_view(['DELETE'])
@@ -565,7 +568,6 @@ def _delete_profile_picture(picture_name):
 
 @api_view(['GET'])
 def get_weekly_top_selling(request):
-    """Returns products marked as Weekly Top Selling by admin."""
     products = Product.objects.filter(
         is_weekly_top=True,
     ).select_related('category').order_by('-created_at')
@@ -579,7 +581,6 @@ def get_weekly_top_selling(request):
 
 @api_view(['GET'])
 def get_new_arrivals(request):
-    """Returns all products ordered by newest first."""
     products = Product.objects.select_related('category').order_by('-created_at')
     data = cached_api_data(
         "products:new-arrivals",
@@ -590,7 +591,6 @@ def get_new_arrivals(request):
 
 @api_view(['GET'])
 def get_sale_products(request):
-    """Returns products with a product-level discount."""
     products = Product.objects.select_related('category').filter(
         discount_percentage__gt=0,
     ).order_by('-discount_percentage', '-created_at')

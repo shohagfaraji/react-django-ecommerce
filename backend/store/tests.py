@@ -19,8 +19,6 @@ def make_product(category, name="Test Product", price="100.00", **kwargs):
 
 
 class ProductDiscountTests(TestCase):
-    """Tests for product-level discount serialization."""
-
     def setUp(self):
         self.category = make_category()
         self.product = make_product(
@@ -116,8 +114,6 @@ class CategoryQueryTests(APITestCase):
 
 
 class AuthTests(APITestCase):
-    """Tests for handled JWT login responses."""
-
     def setUp(self):
         User.objects.create_user(username="loginuser", password="pass123")
 
@@ -180,8 +176,6 @@ class AuthTests(APITestCase):
 
 
 class CartTests(APITestCase):
-    """Tests for /api/cart/add/ and /api/cart/update/."""
-
     def setUp(self):
         self.user = User.objects.create_user(username="cartuser", password="pass123")
         self.client.force_authenticate(user=self.user)
@@ -242,8 +236,6 @@ class CartTests(APITestCase):
 
 
 class OrderTests(APITestCase):
-    """Tests for /api/orders/create/."""
-
     def setUp(self):
         self.user = User.objects.create_user(username="orderuser", password="pass123")
         self.client.force_authenticate(user=self.user)

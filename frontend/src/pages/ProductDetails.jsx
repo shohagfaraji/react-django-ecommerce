@@ -170,8 +170,7 @@ function ProductDetails() {
                             <StarRating value={product.average_rating} count={product.review_count} size="text-base" />
                         </div>
                         <p className="mt-4 text-base leading-7 text-slate-600">
-                            {product.description ||
-                                "More product details will be available soon."}
+                            {product.description || "No description provided."}
                         </p>
 
                         {isOnSale ? (
