@@ -221,6 +221,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     profile_picture_avatar_url = serializers.SerializerMethodField()
     profile_picture_thumbnail_url = serializers.SerializerMethodField()
     profile_picture_url = serializers.SerializerMethodField()
+    order_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = UserProfile
@@ -234,6 +235,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'profile_picture_avatar_url',
             'profile_picture_thumbnail_url',
             'profile_picture_url',
+            'order_count',
         ]
 
     def validate_username(self, value):
@@ -429,6 +431,32 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def get_item_count(self, obj):
         return sum(item.quantity for item in obj.items.all())
+
+
+class OrderListSerializer(serializers.ModelSerializer):
+    status_display = serializers.CharField(
+        source='get_status_display',
+        read_only=True,
+    )
+    item_count = serializers.IntegerField(source='item_count_value', read_only=True)
+    customer_order_number = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Order
+        fields = [
+            'id',
+            'customer_order_number',
+            'created_at',
+            'updated_at',
+            'total_amount',
+            'status',
+            'status_display',
+            'recipient_name',
+            'phone',
+            'delivery_address',
+            'payment_method',
+            'item_count',
+        ]
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)

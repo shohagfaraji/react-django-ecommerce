@@ -7,7 +7,7 @@ import {
     FaTruck,
     FaUser,
 } from "react-icons/fa";
-import { saveTokens } from "../utils/auth";
+import { cacheProfile, saveTokens } from "../utils/auth";
 import { useCart } from "../context/CartContext";
 import { useAlert } from "../context/AlertContext";
 
@@ -38,7 +38,11 @@ function Login() {
 
             if (res.ok && data.success !== false) {
                 saveTokens(data);
-                localStorage.setItem("username", form.username);
+                cacheProfile(data.profile);
+                localStorage.setItem(
+                    "username",
+                    data.profile?.username || form.username,
+                );
                 window.dispatchEvent(new Event("winkelo:auth-changed"));
                 void fetchCart();
                 showAlert("Login successful");

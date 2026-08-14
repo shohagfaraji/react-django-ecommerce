@@ -1,4 +1,28 @@
+import {
+    clearCachedJson,
+    getCachedJson,
+    setCachedJson,
+} from "./apiCache";
+
+export const PROFILE_CACHE_KEY = "account:profile";
+export const ORDERS_CACHE_KEY = "account:orders";
+
+let pendingProfileRequest = null;
+let pendingOrdersRequest = null;
+let pendingRefreshRequest = null;
+let accountCacheVersion = 0;
+
+const clearAccountCache = () => {
+    accountCacheVersion += 1;
+    clearCachedJson(PROFILE_CACHE_KEY);
+    clearCachedJson(ORDERS_CACHE_KEY);
+    pendingProfileRequest = null;
+    pendingOrdersRequest = null;
+    pendingRefreshRequest = null;
+};
+
 export const saveTokens = (tokens) => {
+    clearAccountCache();
     localStorage.setItem("access_token", tokens.access);
     localStorage.setItem("refresh_token", tokens.refresh);
 };
@@ -6,6 +30,7 @@ export const saveTokens = (tokens) => {
 export const clearTokens = () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
+    clearAccountCache();
 };
 
 export const getAccessToken = () => {
@@ -16,31 +41,46 @@ export const getRefreshToken = () => {
     return localStorage.getItem("refresh_token");
 };
 
-const refreshAccessToken = async () => {
+const refreshAccessToken = () => {
     const refreshToken = getRefreshToken();
     if (!refreshToken) return null;
+    if (pendingRefreshRequest) return pendingRefreshRequest;
 
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
+    const requestVersion = accountCacheVersion;
+    const request = fetch(`${BASEURL}/api/token/refresh/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh: refreshToken }),
+    })
+        .then(async (res) => {
+            if (!res.ok) {
+                if (requestVersion === accountCacheVersion) clearTokens();
+                return null;
+            }
 
-    try {
-        const res = await fetch(`${BASEURL}/api/token/refresh/`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refresh: refreshToken }),
+            const data = await res.json();
+            if (
+                requestVersion !== accountCacheVersion ||
+                getRefreshToken() !== refreshToken
+            ) {
+                return null;
+            }
+            localStorage.setItem("access_token", data.access);
+            return data.access;
+        })
+        .catch(() => {
+            if (requestVersion === accountCacheVersion) clearTokens();
+            return null;
+        })
+        .finally(() => {
+            if (pendingRefreshRequest === request) {
+                pendingRefreshRequest = null;
+            }
         });
 
-        if (!res.ok) {
-            clearTokens();
-            return null;
-        }
-
-        const data = await res.json();
-        localStorage.setItem("access_token", data.access);
-        return data.access;
-    } catch {
-        clearTokens();
-        return null;
-    }
+    pendingRefreshRequest = request;
+    return pendingRefreshRequest;
 };
 
 export const authFetch = async (url, options = {}) => {
@@ -68,4 +108,72 @@ export const authFetch = async (url, options = {}) => {
     }
 
     return res;
+};
+
+export const getCachedProfile = () => getCachedJson(PROFILE_CACHE_KEY);
+
+export const cacheProfile = (profile) => {
+    if (profile) setCachedJson(PROFILE_CACHE_KEY, profile);
+};
+
+export const fetchProfile = async (baseUrl, { force = false } = {}) => {
+    if (!force) {
+        const cached = getCachedProfile();
+        if (cached) return cached;
+    }
+
+    if (pendingProfileRequest) return pendingProfileRequest;
+
+    const requestVersion = accountCacheVersion;
+    const request = authFetch(`${baseUrl}/api/profile/`)
+        .then(async (res) => {
+            if (!res.ok) throw new Error("Could not load your account.");
+            const profile = await res.json();
+            if (
+                requestVersion === accountCacheVersion &&
+                getAccessToken()
+            ) {
+                cacheProfile(profile);
+            }
+            return profile;
+        })
+        .finally(() => {
+            if (pendingProfileRequest === request) {
+                pendingProfileRequest = null;
+            }
+        });
+
+    pendingProfileRequest = request;
+    return pendingProfileRequest;
+};
+
+export const fetchOrders = async (baseUrl, { force = false } = {}) => {
+    if (!force) {
+        const cached = getCachedJson(ORDERS_CACHE_KEY);
+        if (cached) return cached;
+    }
+
+    if (pendingOrdersRequest) return pendingOrdersRequest;
+
+    const requestVersion = accountCacheVersion;
+    const request = authFetch(`${baseUrl}/api/orders/`)
+        .then(async (res) => {
+            if (!res.ok) throw new Error("Could not load your orders.");
+            const orders = await res.json();
+            if (
+                requestVersion === accountCacheVersion &&
+                getAccessToken()
+            ) {
+                setCachedJson(ORDERS_CACHE_KEY, orders);
+            }
+            return orders;
+        })
+        .finally(() => {
+            if (pendingOrdersRequest === request) {
+                pendingOrdersRequest = null;
+            }
+        });
+
+    pendingOrdersRequest = request;
+    return pendingOrdersRequest;
 };
