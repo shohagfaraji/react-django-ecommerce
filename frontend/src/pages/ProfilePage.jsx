@@ -17,7 +17,16 @@ import {
 } from "react-icons/fa";
 import { useAlert } from "../context/AlertContext";
 import { useCart } from "../context/CartContext";
-import { authFetch, clearTokens } from "../utils/auth";
+import {
+    authFetch,
+    cacheProfile,
+    clearTokens,
+    fetchOrders,
+    fetchProfile,
+    getCachedProfile,
+    ORDERS_CACHE_KEY,
+} from "../utils/auth";
+import { getCachedJson } from "../utils/apiCache";
 import { formatDate } from "../utils/orders";
 
 const DEFAULT_AVATAR = "/default-avatar.svg";
@@ -29,39 +38,77 @@ function ProfilePage() {
     const activeSection = ["orders", "security"].includes(requestedSection)
         ? requestedSection
         : "profile";
-    const [profile, setProfile] = useState(null);
-    const [orders, setOrders] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [profile, setProfile] = useState(() => getCachedProfile() || null);
+    const [orders, setOrders] = useState(
+        () => getCachedJson(ORDERS_CACHE_KEY) || [],
+    );
+    const [loading, setLoading] = useState(() => !getCachedProfile());
+    const [ordersLoaded, setOrdersLoaded] = useState(
+        () => getCachedJson(ORDERS_CACHE_KEY) !== undefined,
+    );
     const [loadError, setLoadError] = useState("");
+    const [ordersError, setOrdersError] = useState("");
 
     useEffect(() => {
+        let active = true;
+
         const loadAccount = async () => {
-            setLoading(true);
-            setLoadError("");
             try {
-                const [profileRes, ordersRes] = await Promise.all([
-                    authFetch(`${BASEURL}/api/profile/`),
-                    authFetch(`${BASEURL}/api/orders/`),
-                ]);
-                if (!profileRes.ok || !ordersRes.ok) {
-                    throw new Error("Could not load your account.");
-                }
-                const [profileData, orderData] = await Promise.all([
-                    profileRes.json(),
-                    ordersRes.json(),
-                ]);
+                const profileData = await fetchProfile(BASEURL, {
+                    force: Boolean(getCachedProfile()),
+                });
+                if (!active) return;
                 setProfile(profileData);
-                setOrders(orderData);
             } catch (error) {
+                if (!active) return;
+                if (!getCachedProfile()) setProfile(null);
                 setLoadError(error.message || "Could not load your account.");
             } finally {
-                setLoading(false);
+                if (active) setLoading(false);
             }
         };
         void loadAccount();
+        return () => {
+            active = false;
+        };
     }, [BASEURL]);
 
-    if (loading) return <AccountLoading />;
+    useEffect(() => {
+        if (activeSection !== "orders") return undefined;
+        let active = true;
+
+        const loadOrders = async () => {
+            try {
+                const orderData = await fetchOrders(BASEURL, {
+                    force:
+                        getCachedJson(ORDERS_CACHE_KEY) !== undefined,
+                });
+                if (!active) return;
+                setOrders(orderData);
+                setOrdersError("");
+            } catch (error) {
+                if (active) {
+                    setOrdersError(
+                        error.message || "Could not load your orders.",
+                    );
+                }
+            } finally {
+                if (active) setOrdersLoaded(true);
+            }
+        };
+
+        void loadOrders();
+        return () => {
+            active = false;
+        };
+    }, [BASEURL, activeSection]);
+
+    const handleProfileChanged = (nextProfile) => {
+        cacheProfile(nextProfile);
+        setProfile(nextProfile);
+    };
+
+    if (loading && !profile) return <AccountLoading />;
     if (loadError || !profile) {
         return (
             <main className="min-h-screen bg-[#f6f7f9] px-4 pt-36 pb-12 md:pt-28">
@@ -100,7 +147,7 @@ function ProfilePage() {
                             >
                                 My orders
                                 <span className="ml-auto rounded-full bg-slate-100 px-2.5 py-1 text-sm">
-                                    {orders.length}
+                                    {profile.order_count ?? orders.length}
                                 </span>
                             </SectionButton>
                             <SectionButton
@@ -118,10 +165,16 @@ function ProfilePage() {
                     {activeSection === "profile" && (
                         <PersonalDetails
                             profile={profile}
-                            onProfileChanged={setProfile}
+                            onProfileChanged={handleProfileChanged}
                         />
                     )}
-                    {activeSection === "orders" && <Orders orders={orders} />}
+                    {activeSection === "orders" && (
+                        <Orders
+                            orders={orders}
+                            loading={!ordersLoaded}
+                            error={ordersError}
+                        />
+                    )}
                     {activeSection === "security" && <Security />}
                 </div>
             </div>
@@ -482,7 +535,23 @@ function ProfileField({
     );
 }
 
-function Orders({ orders }) {
+function Orders({ orders, loading, error }) {
+    if (loading) return <OrdersLoading />;
+
+    if (error && !orders.length) {
+        return (
+            <section className="rounded-2xl border border-[#b62324]/25 bg-white p-12 text-center shadow-sm">
+                <FaExclamationTriangle className="mx-auto text-5xl text-[#b62324]" />
+                <h2 className="mt-5 text-3xl font-black text-slate-950">
+                    Your orders could not be loaded
+                </h2>
+                <p className="mt-2 text-base font-semibold text-[#b62324]">
+                    {error}
+                </p>
+            </section>
+        );
+    }
+
     if (!orders.length) {
         return (
             <section className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
@@ -935,6 +1004,23 @@ function AccountLoading() {
                 </div>
             </div>
         </main>
+    );
+}
+
+function OrdersLoading() {
+    return (
+        <section className="animate-pulse rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10 lg:p-12">
+            <div className="h-10 w-48 rounded bg-slate-200" />
+            <div className="mt-4 h-6 w-80 max-w-full rounded bg-slate-100" />
+            <div className="mt-9 space-y-5">
+                {[1, 2, 3].map((item) => (
+                    <div
+                        key={item}
+                        className="h-28 rounded-2xl bg-slate-100"
+                    />
+                ))}
+            </div>
+        </section>
     );
 }
 

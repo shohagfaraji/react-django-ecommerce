@@ -49,6 +49,17 @@ export function setCachedJson(cacheKey, data) {
     }
 }
 
+export function clearCachedJson(cacheKey) {
+    apiCache.delete(cacheKey);
+    pendingRequests.delete(cacheKey);
+
+    try {
+        sessionStorage.removeItem(`${SESSION_PREFIX}${cacheKey}`);
+    } catch {
+        return;
+    }
+}
+
 export async function fetchCachedJson(
     url,
     { cacheKey = url, errorMessage = "Failed to fetch data", signal } = {},

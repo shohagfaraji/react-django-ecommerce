@@ -7,19 +7,36 @@ import {
     FaShoppingCart,
     FaSignOutAlt,
 } from "react-icons/fa";
-import { authFetch, clearTokens, getAccessToken } from "../utils/auth.js";
+import {
+    clearTokens,
+    fetchProfile,
+    getAccessToken,
+    getCachedProfile,
+} from "../utils/auth.js";
 
 const DEFAULT_AVATAR = "/default-avatar.svg";
 
 function Navbar({ onMenuToggle }) {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
+    const cachedProfile = getCachedProfile();
     const [showNav, setShowNav] = useState(true);
-    const [search, setSearch] = useState("");
-    const [username, setUsername] = useState(
-        () => localStorage.getItem("username") || "",
-    );
-    const [profilePicture, setProfilePicture] = useState(DEFAULT_AVATAR);
     const [searchParams] = useSearchParams();
+    const querySearch = searchParams.get("search") || "";
+    const [searchDraft, setSearchDraft] = useState(() => ({
+        query: querySearch,
+        value: querySearch,
+    }));
+    const search =
+        searchDraft.query === querySearch ? searchDraft.value : querySearch;
+    const [username, setUsername] = useState(
+        () => cachedProfile?.username || localStorage.getItem("username") || "",
+    );
+    const [profilePicture, setProfilePicture] = useState(
+        () =>
+            cachedProfile?.profile_picture_avatar_url ||
+            cachedProfile?.profile_picture_url ||
+            DEFAULT_AVATAR,
+    );
     const { cartItems, clearCart } = useCart();
     const navigate = useNavigate();
 
@@ -41,10 +58,6 @@ function Navbar({ onMenuToggle }) {
     }, []);
 
     useEffect(() => {
-        setSearch(searchParams.get("search") || "");
-    }, [searchParams]);
-
-    useEffect(() => {
         let active = true;
 
         const syncProfile = async () => {
@@ -56,10 +69,7 @@ function Navbar({ onMenuToggle }) {
             }
 
             try {
-                const res = await authFetch(`${BASEURL}/api/profile/`);
-                if (!res.ok) return;
-
-                const profile = await res.json();
+                const profile = await fetchProfile(BASEURL);
                 if (!active) return;
 
                 setUsername(profile.username || "");
@@ -100,7 +110,14 @@ function Navbar({ onMenuToggle }) {
     const handleSearch = (e) => {
         e.preventDefault();
         const term = search.trim();
-        if (term) navigate(`/?search=${encodeURIComponent(term)}`);
+        if (term) {
+            setSearchDraft({ query: term, value: term });
+            navigate(`/?search=${encodeURIComponent(term)}`);
+        }
+    };
+
+    const handleSearchChange = (event) => {
+        setSearchDraft({ query: querySearch, value: event.target.value });
     };
 
     const cartCount = cartItems.reduce(
@@ -162,7 +179,7 @@ function Navbar({ onMenuToggle }) {
                             autoComplete="off"
                             placeholder="Search fashion, electronics, toys, plants..."
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                            onChange={handleSearchChange}
                             className="h-full min-w-0 flex-1 px-4 text-sm outline-none"
                         />
                         <button
@@ -244,7 +261,7 @@ function Navbar({ onMenuToggle }) {
                         autoComplete="off"
                         placeholder="Search products..."
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={handleSearchChange}
                         className="min-w-0 flex-1 rounded-l-md border border-r-0 border-slate-300 px-4 text-sm outline-none focus:border-emerald-500"
                     />
                     <button

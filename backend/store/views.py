@@ -3,10 +3,25 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 from .models import Product, Category, Cart, CartItem, Order, OrderItem, HeroBanner, UserProfile, Review, ReviewImage
-from .serializers import ProductSerializer, ProductListSerializer, CategorySerializer, CategorySummarySerializer, CartSerializer, CartItemSerializer, RegisterSerializer, UserSerializer, HeroBannerSerializer, UserProfileSerializer, OrderSerializer, ReviewSerializer
+from .serializers import (
+    CartItemSerializer,
+    CartSerializer,
+    CategorySerializer,
+    CategorySummarySerializer,
+    HeroBannerSerializer,
+    OrderListSerializer,
+    OrderSerializer,
+    ProductListSerializer,
+    ProductSerializer,
+    RegisterSerializer,
+    ReviewSerializer,
+    UserProfileSerializer,
+    UserSerializer,
+)
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Prefetch, Q
+from django.db.models import IntegerField, Prefetch, Q, Sum, Value
+from django.db.models.functions import Coalesce
 from django.core.cache import cache
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -51,10 +66,16 @@ def login_token(request):
         })
 
     refresh = RefreshToken.for_user(user)
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    profile.order_count = Order.objects.filter(user=user).count()
     return Response({
         'success': True,
         'refresh': str(refresh),
         'access': str(refresh.access_token),
+        'profile': UserProfileSerializer(
+            profile,
+            context={'request': request},
+        ).data,
     })
 
 
@@ -298,6 +319,7 @@ def create_order(request):
 @permission_classes([IsAuthenticated])
 def user_profile(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.order_count = Order.objects.filter(user=request.user).count()
 
     if request.method == 'GET':
         return Response(
@@ -361,14 +383,20 @@ def check_current_password(request):
 def user_orders(request):
     orders = list(
         Order.objects.filter(user=request.user)
-        .prefetch_related('items__product', 'items__review__user', 'items__review__images')
+        .annotate(
+            item_count_value=Coalesce(
+                Sum('items__quantity'),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+        )
         .order_by('-created_at', '-id')
     )
     order_count = len(orders)
     for index, order in enumerate(orders):
         order.customer_order_number = order_count - index
     return Response(
-        OrderSerializer(orders, many=True, context={'request': request}).data
+        OrderListSerializer(orders, many=True, context={'request': request}).data
     )
 
 

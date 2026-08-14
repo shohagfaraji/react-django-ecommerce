@@ -127,6 +127,8 @@ class AuthTests(APITestCase):
         self.assertTrue(res.data["success"])
         self.assertIn("access", res.data)
         self.assertIn("refresh", res.data)
+        self.assertEqual(res.data["profile"]["username"], "loginuser")
+        self.assertEqual(res.data["profile"]["order_count"], 0)
 
     def test_login_invalid_credentials_returns_handled_response(self):
         res = self.client.post(
@@ -292,11 +294,14 @@ class OrderTests(APITestCase):
         another_user = User.objects.create_user(username="someoneelse", password="pass123")
         Order.objects.create(user=another_user, total_amount="10.00")
 
-        res = self.client.get("/api/orders/")
+        with self.assertNumQueries(1):
+            res = self.client.get("/api/orders/")
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data[0]["recipient_name"], "Test User")
+        self.assertEqual(res.data[0]["item_count"], 2)
+        self.assertNotIn("items", res.data[0])
 
     def test_cannot_open_another_users_order(self):
         another_user = User.objects.create_user(username="someoneelse", password="pass123")
