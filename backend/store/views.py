@@ -136,13 +136,23 @@ def get_products(request):
 
 @api_view(['GET'])
 def get_product(request, pk):
-    try:
+    def build_product_data():
         product = Product.objects.select_related(
             'category',
             'category__parent',
         ).get(id=pk)
-        serializer = ProductSerializer(product, context={'request': request})
-        return Response(serializer.data)
+        return ProductSerializer(
+            product,
+            context={'request': request},
+        ).data
+
+    try:
+        data = cached_api_data(
+            f'product:{pk}',
+            build_product_data,
+            timeout=180,
+        )
+        return Response(data)
     except Product.DoesNotExist:
         return Response({'error': 'Product not found'}, status=404)
 
@@ -422,10 +432,32 @@ def user_order_detail(request, pk):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def product_reviews(request, pk):
-    if not Product.objects.filter(pk=pk).exists():
-        return Response({'detail': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
-    reviews = Review.objects.filter(product_id=pk).select_related('user').prefetch_related('images')
-    return Response(ReviewSerializer(reviews, many=True, context={'request': request}).data)
+    def build_review_data():
+        reviews = list(
+            Review.objects.filter(product_id=pk)
+            .select_related('user')
+            .prefetch_related('images')
+        )
+        if not reviews and not Product.objects.filter(pk=pk).exists():
+            raise Product.DoesNotExist
+        return ReviewSerializer(
+            reviews,
+            many=True,
+            context={'request': request},
+        ).data
+
+    try:
+        data = cached_api_data(
+            f'product-reviews:{pk}',
+            build_review_data,
+            timeout=120,
+        )
+    except Product.DoesNotExist:
+        return Response(
+            {'detail': 'Product not found.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    return Response(data)
 
 
 @api_view(['POST'])

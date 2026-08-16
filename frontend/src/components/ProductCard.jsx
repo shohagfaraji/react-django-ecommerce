@@ -2,15 +2,27 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FaShoppingCart, FaStar } from "react-icons/fa";
 import StarRating from "./StarRating";
+import { preloadProductDetails } from "../utils/apiCache";
 
 function ProductCard({ product }) {
+    const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const [imageFailed, setImageFailed] = useState(false);
     const discount = product.active_discount || 0;
     const isOnSale = discount > 0 && product.discounted_price;
 
+    const preloadDetails = () => {
+        void import("../pages/ProductDetails");
+        void preloadProductDetails(BASEURL, product.id).catch(
+            () => undefined,
+        );
+    };
+
     return (
         <Link
             to={`/product/${product.id}`}
+            onMouseEnter={preloadDetails}
+            onFocus={preloadDetails}
+            onTouchStart={preloadDetails}
             className="group block overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
         >
             <div className="relative overflow-hidden rounded-md bg-slate-50">

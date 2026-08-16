@@ -62,9 +62,14 @@ export function clearCachedJson(cacheKey) {
 
 export async function fetchCachedJson(
     url,
-    { cacheKey = url, errorMessage = "Failed to fetch data", signal } = {},
+    {
+        cacheKey = url,
+        errorMessage = "Failed to fetch data",
+        signal,
+        staleMs = DEFAULT_STALE_MS,
+    } = {},
 ) {
-    const cached = getCachedJson(cacheKey);
+    const cached = getCachedJson(cacheKey, staleMs);
     if (cached !== undefined) return cached;
 
     if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey);
@@ -108,8 +113,23 @@ export function productCacheKey(productId) {
     return `product:${productId}`;
 }
 
+export function productDetailsCacheKey(productId) {
+    return `product-details:${productId}`;
+}
+
+export function productReviewsCacheKey(productId) {
+    return `product-reviews:${productId}`;
+}
+
+export function getCachedProductDetails(productId) {
+    return getCachedJson(productDetailsCacheKey(productId));
+}
+
 export function getCachedProduct(productId) {
-    return getCachedJson(productCacheKey(productId));
+    return (
+        getCachedProductDetails(productId) ||
+        getCachedJson(productCacheKey(productId))
+    );
 }
 
 export function rememberProducts(products) {
@@ -120,6 +140,29 @@ export function rememberProducts(products) {
             setCachedJson(productCacheKey(product.id), product);
         }
     });
+}
+
+export function rememberProductDetails(product) {
+    if (!product?.id) return;
+    setCachedJson(productDetailsCacheKey(product.id), product);
+    setCachedJson(productCacheKey(product.id), product);
+}
+
+export function preloadProductDetails(baseUrl, productId) {
+    return fetchCachedJson(`${baseUrl}/api/product/${productId}/`, {
+        cacheKey: productDetailsCacheKey(productId),
+        errorMessage: "Failed to fetch product",
+    }).then((product) => {
+        rememberProductDetails(product);
+        preloadImage(product.image_url);
+        return product;
+    });
+}
+
+export function clearProductData(productId) {
+    clearCachedJson(productCacheKey(productId));
+    clearCachedJson(productDetailsCacheKey(productId));
+    clearCachedJson(productReviewsCacheKey(productId));
 }
 
 export function preloadImage(src) {

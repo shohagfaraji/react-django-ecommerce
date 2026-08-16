@@ -113,6 +113,26 @@ class CategoryQueryTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
+class ProductLoadingTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        category = make_category()
+        self.product = make_product(category)
+
+    def test_product_details_are_cached_after_first_request(self):
+        with self.assertNumQueries(1):
+            response = self.client.get(f"/api/product/{self.product.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        with self.assertNumQueries(0):
+            cached_response = self.client.get(
+                f"/api/product/{self.product.id}/",
+            )
+
+        self.assertEqual(cached_response.data["id"], self.product.id)
+
+
 class AuthTests(APITestCase):
     def setUp(self):
         User.objects.create_user(username="loginuser", password="pass123")
@@ -314,6 +334,7 @@ class OrderTests(APITestCase):
 
 class ReviewTests(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user = User.objects.create_user(username="reviewer", password="pass123")
         self.other_user = User.objects.create_user(username="other", password="pass123")
         category = make_category()
@@ -330,6 +351,60 @@ class ReviewTests(APITestCase):
             price="100.00",
         )
         self.client.force_authenticate(user=self.user)
+
+    def test_product_reviews_are_cached_after_first_request(self):
+        review = Review.objects.create(
+            order_item=self.item,
+            product=self.product,
+            user=self.user,
+            rating=5,
+            comment="Excellent",
+        )
+        cache.clear()
+
+        with self.assertNumQueries(2):
+            response = self.client.get(
+                f"/api/products/{self.product.id}/reviews/",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["id"], review.id)
+
+        with self.assertNumQueries(0):
+            cached_response = self.client.get(
+                f"/api/products/{self.product.id}/reviews/",
+            )
+
+        self.assertEqual(cached_response.data[0]["comment"], "Excellent")
+
+    def test_new_review_invalidates_cached_product_data(self):
+        product_response = self.client.get(
+            f"/api/product/{self.product.id}/",
+        )
+        reviews_response = self.client.get(
+            f"/api/products/{self.product.id}/reviews/",
+        )
+        self.assertEqual(product_response.data["review_count"], 0)
+        self.assertEqual(reviews_response.data, [])
+
+        with self.captureOnCommitCallbacks(execute=True):
+            Review.objects.create(
+                order_item=self.item,
+                product=self.product,
+                user=self.user,
+                rating=5,
+                comment="Excellent",
+            )
+
+        refreshed_product = self.client.get(
+            f"/api/product/{self.product.id}/",
+        )
+        refreshed_reviews = self.client.get(
+            f"/api/products/{self.product.id}/reviews/",
+        )
+        self.assertEqual(refreshed_product.data["average_rating"], 5.0)
+        self.assertEqual(refreshed_product.data["review_count"], 1)
+        self.assertEqual(refreshed_reviews.data[0]["comment"], "Excellent")
 
     def test_delivered_item_owner_can_review(self):
         response = self.client.post(
