@@ -7,46 +7,48 @@ import {
     fetchCachedJson,
     getCachedProduct,
     preloadImage,
-    rememberProducts,
-    productCacheKey,
+    rememberProductDetails,
+    productDetailsCacheKey,
 } from "../utils/apiCache";
+
+function getStoredProducts() {
+    try {
+        const products = JSON.parse(localStorage.getItem("compareList"));
+        return Array.isArray(products) ? products : [];
+    } catch {
+        return [];
+    }
+}
 
 function CompareProducts() {
     const { showAlert } = useAlert();
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [products, setProducts] = useState(() =>
+        getStoredProducts().map(
+            (product) => getCachedProduct(product.id) || product,
+        ),
+    );
     const { addToCart } = useCart();
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
     useEffect(() => {
-        const stored = JSON.parse(localStorage.getItem("compareList")) || [];
-        if (stored.length === 0) {
-            setLoading(false);
-            return;
-        }
-
-        setProducts(
-            stored.map((product) => getCachedProduct(product.id) || product),
-        );
-        setLoading(false);
+        const stored = getStoredProducts();
+        if (stored.length === 0) return;
 
         Promise.all(
             stored.map((p) =>
                 fetchCachedJson(`${BASEURL}/api/product/${p.id}/`, {
-                    cacheKey: productCacheKey(p.id),
+                    cacheKey: productDetailsCacheKey(p.id),
                     errorMessage: "Failed to fetch product",
                 }),
             ),
         )
             .then((fresh) => {
-                rememberProducts(fresh);
+                fresh.forEach(rememberProductDetails);
                 fresh.forEach((product) => preloadImage(product.image_url));
                 setProducts(fresh);
-                setLoading(false);
             })
             .catch(() => {
                 setProducts(stored);
-                setLoading(false);
             });
     }, [BASEURL]);
 
@@ -63,18 +65,6 @@ function CompareProducts() {
         localStorage.removeItem("compareList");
         setProducts([]);
     };
-
-    if (loading) {
-        return (
-            <main className="min-h-screen bg-[#f6f7f9] px-4 pt-36 md:pt-28">
-                <div className="mx-auto max-w-5xl rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                    <p className="font-bold text-slate-500">
-                        Loading comparison...
-                    </p>
-                </div>
-            </main>
-        );
-    }
 
     if (products.length < 2) {
         return (

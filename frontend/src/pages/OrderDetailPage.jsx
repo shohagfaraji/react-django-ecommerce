@@ -17,6 +17,7 @@ import {
     FaExclamationTriangle,
 } from "react-icons/fa";
 import { authFetch } from "../utils/auth";
+import { clearProductData } from "../utils/apiCache";
 import { formatDate } from "../utils/orders";
 import StarRating from "../components/StarRating";
 
@@ -265,6 +266,7 @@ function OrderDetailPage() {
                     baseUrl={BASEURL}
                     onClose={() => setReviewingItem(null)}
                     onSaved={(review) => {
+                        clearProductData(reviewingItem.product);
                         setOrder((current) => ({
                             ...current,
                             items: current.items.map((item) =>
@@ -283,6 +285,7 @@ function OrderDetailPage() {
                     baseUrl={BASEURL}
                     onClose={() => setDeletingReviewItem(null)}
                     onDeleted={() => {
+                        clearProductData(deletingReviewItem.product);
                         setOrder((current) => ({
                             ...current,
                             items: current.items.map((item) =>

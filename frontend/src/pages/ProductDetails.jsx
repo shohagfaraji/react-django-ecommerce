@@ -11,13 +11,15 @@ import {
 } from "react-icons/fa";
 import {
     fetchCachedJson,
+    getCachedJson,
     getCachedProduct,
-    preloadImage,
-    rememberProducts,
-    productCacheKey,
+    preloadProductDetails,
+    productReviewsCacheKey,
 } from "../utils/apiCache";
 import StarRating from "../components/StarRating";
 import { formatDate } from "../utils/orders";
+
+const REVIEWS_STALE_MS = 2 * 60 * 1000;
 
 function ProductDetails() {
     const { showAlert } = useAlert();
@@ -25,53 +27,127 @@ function ProductDetails() {
     const navigate = useNavigate();
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
-    const [product, setProduct] = useState(() => getCachedProduct(id) || null);
-    const [loading, setLoading] = useState(() => !getCachedProduct(id));
-    const [error, setError] = useState(null);
-    const [imageFailed, setImageFailed] = useState(false);
-    const [reviews, setReviews] = useState([]);
+    const [productRequest, setProductRequest] = useState(() => ({
+        id,
+        product: getCachedProduct(id) || null,
+        loading: !getCachedProduct(id),
+        error: null,
+    }));
+    const [failedImageUrl, setFailedImageUrl] = useState("");
+    const [reviewRequest, setReviewRequest] = useState(() => {
+        const cachedReviews = getCachedJson(
+            productReviewsCacheKey(id),
+            REVIEWS_STALE_MS,
+        );
+        return {
+            id,
+            reviews: cachedReviews || [],
+            loading: cachedReviews === undefined,
+            error: null,
+        };
+    });
 
     const { addToCart } = useCart();
+    const cachedProduct = getCachedProduct(id);
+    const currentProductRequest =
+        productRequest.id === id ? productRequest : null;
+    const product = currentProductRequest?.product || cachedProduct;
+    const loading = currentProductRequest
+        ? currentProductRequest.loading && !product
+        : !cachedProduct;
+    const error = currentProductRequest?.error || null;
+    const cachedReviews = getCachedJson(
+        productReviewsCacheKey(id),
+        REVIEWS_STALE_MS,
+    );
+    const currentReviewRequest =
+        reviewRequest.id === id ? reviewRequest : null;
+    const reviews = currentReviewRequest?.reviews || cachedReviews || [];
+    const reviewsLoading = currentReviewRequest
+        ? currentReviewRequest.loading && cachedReviews === undefined
+        : cachedReviews === undefined;
+    const reviewsError = currentReviewRequest?.error || null;
 
     useEffect(() => {
-        const controller = new AbortController();
-        const cachedProduct = getCachedProduct(id);
-        setImageFailed(false);
+        let active = true;
 
-        if (cachedProduct) {
-            setProduct(cachedProduct);
-            preloadImage(cachedProduct.image_url);
-            setLoading(false);
-        } else {
-            setLoading(true);
-        }
-
-        fetchCachedJson(`${BASEURL}/api/product/${id}/`, {
-            cacheKey: productCacheKey(id),
-            errorMessage: "Failed to fetch product",
-            signal: controller.signal,
-        })
+        preloadProductDetails(BASEURL, id)
             .then((data) => {
-                rememberProducts([data]);
-                preloadImage(data.image_url);
-                setProduct(data);
-                setLoading(false);
+                if (!active) return;
+                setProductRequest({
+                    id,
+                    product: data,
+                    loading: false,
+                    error: null,
+                });
             })
             .catch((err) => {
-                if (err.name !== "AbortError") {
-                    setError(err.message);
-                    setLoading(false);
-                }
+                if (!active) return;
+                const fallback = getCachedProduct(id);
+                setProductRequest({
+                    id,
+                    product: fallback || null,
+                    loading: false,
+                    error: fallback ? null : err.message,
+                });
             });
 
-        return () => controller.abort();
+        return () => {
+            active = false;
+        };
     }, [id, BASEURL]);
 
     useEffect(() => {
-        fetch(`${BASEURL}/api/products/${id}/reviews/`)
-            .then((response) => response.ok ? response.json() : [])
-            .then(setReviews)
-            .catch(() => setReviews([]));
+        const reviewCacheKey = productReviewsCacheKey(id);
+        if (getCachedJson(reviewCacheKey, REVIEWS_STALE_MS) !== undefined) {
+            return undefined;
+        }
+
+        let active = true;
+        let idleId;
+        const loadReviews = () => {
+            fetchCachedJson(`${BASEURL}/api/products/${id}/reviews/`, {
+                cacheKey: reviewCacheKey,
+                errorMessage: "Could not load customer reviews",
+                staleMs: REVIEWS_STALE_MS,
+            })
+                .then((data) => {
+                    if (!active) return;
+                    setReviewRequest({
+                        id,
+                        reviews: data,
+                        loading: false,
+                        error: null,
+                    });
+                })
+                .catch((reviewError) => {
+                    if (!active) return;
+                    setReviewRequest({
+                        id,
+                        reviews: [],
+                        loading: false,
+                        error: reviewError.message,
+                    });
+                });
+        };
+
+        const timer = window.setTimeout(() => {
+            if ("requestIdleCallback" in window) {
+                idleId = window.requestIdleCallback(loadReviews, {
+                    timeout: 600,
+                });
+            } else {
+                loadReviews();
+            }
+        }, 150);
+
+        return () => {
+            active = false;
+            window.clearTimeout(timer);
+            if (idleId !== undefined && "cancelIdleCallback" in window) {
+                window.cancelIdleCallback(idleId);
+            }
+        };
     }, [BASEURL, id]);
 
     if (loading) {
@@ -93,7 +169,7 @@ function ProductDetails() {
 
     if (error || !product) {
         return (
-            <main className="min-h-screen bg-[#f6f7f9] px-4 pt-36 text-center text-rose-600 md:pt-28">
+            <main className="min-h-screen bg-[#f6f7f9] px-4 pt-36 text-center text-[#b62324] md:pt-28">
                 {error || "No product found"}
             </main>
         );
@@ -144,12 +220,17 @@ function ProductDetails() {
                 <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:grid-cols-[0.9fr_1.1fr] md:gap-8 md:p-8">
                     <div className="bg-slate-50 md:rounded-lg">
                         <div className="flex aspect-square items-center justify-center">
-                            {product.image_url && !imageFailed ? (
+                            {product.image_url &&
+                            failedImageUrl !== product.image_url ? (
                                 <img
                                     src={product.image_url}
                                     alt={product.name}
                                     className="h-full w-full object-contain"
-                                    onError={() => setImageFailed(true)}
+                                    decoding="async"
+                                    fetchPriority="high"
+                                    onError={() =>
+                                        setFailedImageUrl(product.image_url)
+                                    }
                                 />
                             ) : (
                                 <div className="flex h-full w-full items-center justify-center rounded-lg border border-dashed border-slate-300 text-slate-400">
@@ -167,7 +248,11 @@ function ProductDetails() {
                             {product.name}
                         </h1>
                         <div className="mt-3">
-                            <StarRating value={product.average_rating} count={product.review_count} size="text-base" />
+                            <StarRating
+                                value={product.average_rating}
+                                count={product.review_count}
+                                size="text-base"
+                            />
                         </div>
                         <p className="mt-4 text-base leading-7 text-slate-600">
                             {product.description || "No description provided."}
@@ -224,26 +309,58 @@ function ProductDetails() {
                     </div>
                 </section>
                 <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <h2 className="text-2xl font-black text-slate-950">Customer reviews</h2>
-                    {reviews.length === 0 ? (
-                        <p className="mt-4 text-sm font-semibold text-slate-500">No reviews yet.</p>
+                    <h2 className="text-2xl font-black text-slate-950">
+                        Customer reviews
+                    </h2>
+                    {reviewsLoading ? (
+                        <ReviewsLoading />
+                    ) : reviewsError ? (
+                        <p className="mt-4 text-sm font-semibold text-[#b62324]">
+                            {reviewsError}
+                        </p>
+                    ) : reviews.length === 0 ? (
+                        <p className="mt-4 text-sm font-semibold text-slate-500">
+                            No reviews yet.
+                        </p>
                     ) : (
                         <div className="mt-5 divide-y divide-slate-100">
                             {reviews.map((review) => (
-                                <article key={review.id} className="py-5 first:pt-0">
+                                <article
+                                    key={review.id}
+                                    className="py-5 first:pt-0"
+                                >
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                         <div>
-                                            <p className="font-black text-slate-900">{review.username}</p>
+                                            <p className="font-black text-slate-900">
+                                                {review.username}
+                                            </p>
                                             <StarRating value={review.rating} />
                                         </div>
-                                        <time className="text-xs font-bold text-slate-500">{formatDate(review.created_at)}</time>
+                                        <time className="text-xs font-bold text-slate-500">
+                                            {formatDate(review.created_at)}
+                                        </time>
                                     </div>
-                                    {review.comment && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{review.comment}</p>}
+                                    {review.comment && (
+                                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                                            {review.comment}
+                                        </p>
+                                    )}
                                     {review.images.length > 0 && (
                                         <div className="mt-4 flex flex-wrap gap-3">
                                             {review.images.map((image) => (
-                                                <a key={image.id} href={image.image_url} target="_blank" rel="noreferrer">
-                                                    <img src={image.image_url} alt="Customer review attachment" className="h-24 w-24 rounded-lg border border-slate-200 object-cover" />
+                                                <a
+                                                    key={image.id}
+                                                    href={image.image_url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    <img
+                                                        src={image.image_url}
+                                                        alt="Customer review attachment"
+                                                        className="h-24 w-24 rounded-lg border border-slate-200 object-cover"
+                                                        loading="lazy"
+                                                        decoding="async"
+                                                    />
                                                 </a>
                                             ))}
                                         </div>
@@ -255,6 +372,20 @@ function ProductDetails() {
                 </section>
             </div>
         </main>
+    );
+}
+
+function ReviewsLoading() {
+    return (
+        <div className="mt-5 animate-pulse space-y-5">
+            {[1, 2].map((item) => (
+                <div key={item} className="border-b border-slate-100 pb-5">
+                    <div className="h-5 w-32 rounded bg-slate-200" />
+                    <div className="mt-2 h-4 w-24 rounded bg-slate-100" />
+                    <div className="mt-4 h-4 w-full rounded bg-slate-100" />
+                </div>
+            ))}
+        </div>
     );
 }
 
