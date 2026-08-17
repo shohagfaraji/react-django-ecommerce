@@ -2,7 +2,9 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -208,6 +210,18 @@ class CartTests(APITestCase):
         res = self.client.post("/api/cart/add/", {"product_id": self.product.id})
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data["cart_count"], 1)
+        self.assertEqual(res.data["item"]["product"], self.product.id)
+        self.assertEqual(res.data["item"]["quantity"], 1)
+
+    def test_cart_load_uses_two_queries_for_existing_cart(self):
+        cart = Cart.objects.create(user=self.user)
+        CartItem.objects.create(cart=cart, product=self.product, quantity=2)
+
+        with self.assertNumQueries(2):
+            response = self.client.get("/api/cart/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["items"][0]["quantity"], 2)
 
     def test_add_to_cart_duplicate_increments_quantity(self):
         self.client.post("/api/cart/add/", {"product_id": self.product.id})
@@ -274,6 +288,44 @@ class OrderTests(APITestCase):
         )
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertIn("order_id", res.data)
+        self.assertEqual(res.data["item_count"], 2)
+        self.assertEqual(res.data["total_amount"], "60.00")
+
+    def test_create_order_bulk_inserts_multiple_items(self):
+        second_product = make_product(
+            self.product.category,
+            name="Second Product",
+            price="20.00",
+        )
+        cart = Cart.objects.get(user=self.user)
+        CartItem.objects.create(
+            cart=cart,
+            product=second_product,
+            quantity=1,
+        )
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.post(
+                "/api/orders/create/",
+                {
+                    "name": "Test User",
+                    "address": "Road 1",
+                    "phone": "01700000000",
+                },
+                format="json",
+            )
+
+        order_item_inserts = [
+            query["sql"]
+            for query in queries.captured_queries
+            if 'INSERT INTO "store_orderitem"' in query["sql"]
+        ]
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(order_item_inserts), 1)
+        self.assertEqual(
+            OrderItem.objects.filter(order_id=response.data["order_id"]).count(),
+            2,
+        )
 
     def test_create_order_requires_phone(self):
         res = self.client.post(

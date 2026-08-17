@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { useCart } from "../context/CartContext";
+import useCart from "../context/useCart";
 import { useAlert } from "../context/AlertContext";
 import {
     FaArrowLeft,
