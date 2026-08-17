@@ -20,7 +20,15 @@ from .serializers import (
 )
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import IntegerField, Prefetch, Q, Sum, Value
+from django.db.models import (
+    F,
+    IntegerField,
+    Prefetch,
+    Q,
+    Sum,
+    Value,
+    prefetch_related_objects,
+)
 from django.db.models.functions import Coalesce
 from django.core.cache import cache
 from django.contrib.auth.password_validation import validate_password
@@ -193,8 +201,17 @@ def get_categories(request):
 @permission_classes([IsAuthenticated])
 def get_cart(request):
     cart, created = Cart.objects.get_or_create(user=request.user)
-    cart_with_items = Cart.objects.prefetch_related('items__product').get(id=cart.id)
-    serializer = CartSerializer(cart_with_items, context={'request': request})
+    if created:
+        cart._prefetched_objects_cache = {'items': []}
+    else:
+        prefetch_related_objects(
+            [cart],
+            Prefetch(
+                'items',
+                queryset=CartItem.objects.select_related('product'),
+            ),
+        )
+    serializer = CartSerializer(cart, context={'request': request})
     return Response(serializer.data)
 
 @api_view(['POST'])
@@ -214,12 +231,26 @@ def add_to_cart(request):
     item, created = CartItem.objects.get_or_create(cart=cart, product=product)
 
     if not created:
-        item.quantity += 1
-        item.save()
+        CartItem.objects.filter(pk=item.pk).update(
+            quantity=F('quantity') + 1,
+        )
+        item.refresh_from_db(fields=['quantity'])
 
-    total_count = CartItem.objects.filter(cart=cart).values_list('quantity', flat=True)
-    count = sum(total_count)
-    return Response({'message': 'Product added to cart', 'cart_count': count})
+    count = CartItem.objects.filter(cart=cart).aggregate(
+        total=Coalesce(
+            Sum('quantity'),
+            Value(0),
+            output_field=IntegerField(),
+        ),
+    )['total']
+    return Response({
+        'message': 'Product added to cart',
+        'cart_count': count,
+        'item': CartItemSerializer(
+            item,
+            context={'request': request},
+        ).data,
+    })
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -227,17 +258,16 @@ def update_cart_quantity(request):
     item_id = request.data.get('item_id')
     quantity = request.data.get('quantity')
 
-    cart = Cart.objects.filter(user=request.user).first()
-    if not cart:
-        return Response({"error": "Cart not found"}, status=404)
-
     try:
         quantity = int(quantity)
     except (ValueError, TypeError):
         return Response({"error": "quantity must be a valid number"}, status=400)
 
     try:
-        item = CartItem.objects.get(cart=cart, id=item_id)
+        item = CartItem.objects.select_related('product').get(
+            cart__user=request.user,
+            id=item_id,
+        )
     except (CartItem.DoesNotExist, ValueError, TypeError):
         return Response({"error": "Item not found"}, status=404)
 
@@ -246,17 +276,17 @@ def update_cart_quantity(request):
         return Response({"message": "Item removed"})
 
     item.quantity = quantity
-    item.save()
+    item.save(update_fields=['quantity'])
     return Response(CartItemSerializer(item, context={'request': request}).data)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def remove_from_cart(request):
     item_id = request.data.get('item_id')
-    cart = Cart.objects.filter(user=request.user).first()
-
-    if cart:
-        CartItem.objects.filter(cart=cart, id=item_id).delete()
+    CartItem.objects.filter(
+        cart__user=request.user,
+        id=item_id,
+    ).delete()
 
     return Response({"message": "Item removed"})
 
@@ -279,15 +309,19 @@ def create_order(request):
     if payment_method not in {'COD', 'CreditCard'}:
         return Response({"error": "Invalid payment method"}, status=400)
 
-    cart = Cart.objects.filter(user=request.user).first()
-    if not cart:
-        return Response({"error": "Cart not found"}, status=404)
-
-    cart_items = CartItem.objects.filter(cart=cart).select_related('product')
-    if not cart_items.exists():
-        return Response({"error": "Cart is empty"}, status=400)
-
     with transaction.atomic():
+        cart = Cart.objects.select_for_update().filter(
+            user=request.user,
+        ).first()
+        if not cart:
+            return Response({"error": "Cart not found"}, status=404)
+
+        cart_items = list(
+            CartItem.objects.filter(cart=cart).select_related('product')
+        )
+        if not cart_items:
+            return Response({"error": "Cart is empty"}, status=400)
+
         priced_items = []
         total = Decimal('0.00')
         for item in cart_items:
@@ -309,19 +343,25 @@ def create_order(request):
             payment_method=payment_method,
         )
 
-        for item, unit_price in priced_items:
-            OrderItem.objects.create(
+        OrderItem.objects.bulk_create([
+            OrderItem(
                 order=order,
                 product=item.product,
                 quantity=item.quantity,
                 price=unit_price,
             )
+            for item, unit_price in priced_items
+        ])
 
-        cart_items.delete()
+        CartItem.objects.filter(
+            pk__in=[item.pk for item in cart_items],
+        ).delete()
 
     return Response({
         "message": "Order placed successfully",
-        "order_id": order.id
+        "order_id": order.id,
+        "item_count": sum(item.quantity for item in cart_items),
+        "total_amount": str(total),
     }, status=201)
 
 

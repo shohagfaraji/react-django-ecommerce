@@ -6,6 +6,7 @@ import {
 
 export const PROFILE_CACHE_KEY = "account:profile";
 export const ORDERS_CACHE_KEY = "account:orders";
+export const CART_CACHE_KEY = "account:cart";
 
 let pendingProfileRequest = null;
 let pendingOrdersRequest = null;
@@ -16,6 +17,7 @@ const clearAccountCache = () => {
     accountCacheVersion += 1;
     clearCachedJson(PROFILE_CACHE_KEY);
     clearCachedJson(ORDERS_CACHE_KEY);
+    clearCachedJson(CART_CACHE_KEY);
     pendingProfileRequest = null;
     pendingOrdersRequest = null;
     pendingRefreshRequest = null;
@@ -114,6 +116,18 @@ export const getCachedProfile = () => getCachedJson(PROFILE_CACHE_KEY);
 
 export const cacheProfile = (profile) => {
     if (profile) setCachedJson(PROFILE_CACHE_KEY, profile);
+};
+
+export const markOrderPlaced = () => {
+    const profile = getCachedProfile();
+    if (profile) {
+        cacheProfile({
+            ...profile,
+            order_count: Number(profile.order_count || 0) + 1,
+        });
+    }
+    clearCachedJson(ORDERS_CACHE_KEY);
+    pendingOrdersRequest = null;
 };
 
 export const fetchProfile = async (baseUrl, { force = false } = {}) => {

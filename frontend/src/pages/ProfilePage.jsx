@@ -16,7 +16,7 @@ import {
     FaUserCircle,
 } from "react-icons/fa";
 import { useAlert } from "../context/AlertContext";
-import { useCart } from "../context/CartContext";
+import useCart from "../context/useCart";
 import {
     authFetch,
     cacheProfile,

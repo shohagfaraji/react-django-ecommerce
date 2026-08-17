@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { authFetch } from "../utils/auth";
+import {
+    authFetch,
+    fetchProfile,
+    getCachedProfile,
+    markOrderPlaced,
+} from "../utils/auth";
 import { useAlert } from "../context/AlertContext";
-import { useCart } from "../context/CartContext";
+import useCart from "../context/useCart";
 import {
     FaArrowLeft,
     FaCheckCircle,
@@ -13,18 +18,29 @@ import {
     FaUser,
 } from "react-icons/fa";
 
+function initialCheckoutForm() {
+    const profile = getCachedProfile();
+    return {
+        name: profile?.name || "",
+        address: profile?.address || "",
+        phone: profile?.phone || "",
+        payment_method: "COD",
+    };
+}
+
 function CheckoutPage() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const navigate = useNavigate();
     const { showAlert } = useAlert();
-    const { clearCart, total, cartItems } = useCart();
+    const {
+        clearCart,
+        flushCartUpdates,
+        total,
+        cartItems,
+        cartLoading,
+    } = useCart();
 
-    const [form, setForm] = useState({
-        name: "",
-        address: "",
-        phone: "",
-        payment_method: "COD",
-    });
+    const [form, setForm] = useState(initialCheckoutForm);
 
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState(null);
@@ -34,9 +50,7 @@ function CheckoutPage() {
     useEffect(() => {
         const loadSavedDetails = async () => {
             try {
-                const res = await authFetch(`${BASEURL}/api/profile/`);
-                if (!res.ok) return;
-                const profile = await res.json();
+                const profile = await fetchProfile(BASEURL);
                 setForm((current) => ({
                     ...current,
                     name: current.name || profile.name || "",
@@ -60,9 +74,11 @@ function CheckoutPage() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (loading || cartLoading || !cartItems.length) return;
         setLoading(true);
         setMessage("");
         try {
+            await flushCartUpdates();
             const res = await authFetch(`${BASEURL}/api/orders/create/`, {
                 method: "POST",
                 headers: {
@@ -74,11 +90,17 @@ function CheckoutPage() {
 
             if (res.ok) {
                 setOrderSummary({
-                    itemCount: cartItems.length,
-                    total,
+                    itemCount:
+                        data.item_count ??
+                        cartItems.reduce(
+                            (count, item) => count + item.quantity,
+                            0,
+                        ),
+                    total: data.total_amount ?? total,
                     paymentMethod: form.payment_method,
                 });
                 showAlert("Order placed successfully");
+                markOrderPlaced();
                 clearCart();
                 setConfirmedOrder({
                     id: data.order_id,
@@ -187,17 +209,23 @@ function CheckoutPage() {
                                 </label>
 
                                 {message && (
-                                    <p className="rounded-md bg-rose-50 px-3 py-2 text-sm font-bold text-rose-600">
+                                    <p className="rounded-md bg-[#b62324]/10 px-3 py-2 text-sm font-bold text-[#b62324]">
                                         {message}
                                     </p>
                                 )}
 
                                 <button
                                     type="submit"
-                                    disabled={loading}
+                                    disabled={
+                                        loading ||
+                                        cartLoading ||
+                                        !cartItems.length
+                                    }
                                     className="h-12 w-full rounded-md bg-slate-950 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
                                 >
-                                    {loading
+                                    {cartLoading
+                                        ? "Loading cart..."
+                                        : loading
                                         ? "Processing order..."
                                         : "Place order"}
                                 </button>

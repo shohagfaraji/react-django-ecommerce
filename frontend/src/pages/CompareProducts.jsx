@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useCart } from "../context/CartContext";
+import useCart from "../context/useCart";
 import { useAlert } from "../context/AlertContext";
 import { FaBalanceScale, FaShoppingCart, FaTimes } from "react-icons/fa";
 import {

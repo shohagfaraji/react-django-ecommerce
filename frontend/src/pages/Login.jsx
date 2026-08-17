@@ -8,7 +8,7 @@ import {
     FaUser,
 } from "react-icons/fa";
 import { cacheProfile, saveTokens } from "../utils/auth";
-import { useCart } from "../context/CartContext";
+import useCart from "../context/useCart";
 import { useAlert } from "../context/AlertContext";
 
 function Login() {
@@ -17,7 +17,7 @@ function Login() {
     const [msg, setMsg] = useState("");
     const [loading, setLoading] = useState(false);
     const nav = useNavigate();
-    const { fetchCart } = useCart();
+    const { clearCart, fetchCart } = useCart();
     const { showAlert } = useAlert();
 
     const handleChange = (e) =>
@@ -44,6 +44,7 @@ function Login() {
                     data.profile?.username || form.username,
                 );
                 window.dispatchEvent(new Event("winkelo:auth-changed"));
+                clearCart();
                 void fetchCart();
                 showAlert("Login successful");
                 nav("/");
