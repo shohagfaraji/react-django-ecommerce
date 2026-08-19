@@ -25,6 +25,7 @@ import {
     fetchProfile,
     getCachedProfile,
     ORDERS_CACHE_KEY,
+    preloadOrderDetails,
 } from "../utils/auth";
 import { getCachedJson } from "../utils/apiCache";
 import { formatDate } from "../utils/orders";
@@ -170,6 +171,7 @@ function ProfilePage() {
                     )}
                     {activeSection === "orders" && (
                         <Orders
+                            baseUrl={BASEURL}
                             orders={orders}
                             loading={!ordersLoaded}
                             error={ordersError}
@@ -535,7 +537,7 @@ function ProfileField({
     );
 }
 
-function Orders({ orders, loading, error }) {
+function Orders({ baseUrl, orders, loading, error }) {
     if (loading) return <OrdersLoading />;
 
     if (error && !orders.length) {
@@ -585,6 +587,13 @@ function Orders({ orders, loading, error }) {
                     <Link
                         key={order.id}
                         to={`/profile/orders/${order.id}`}
+                        onMouseEnter={() =>
+                            preloadOrderDetails(baseUrl, order.id)
+                        }
+                        onFocus={() => preloadOrderDetails(baseUrl, order.id)}
+                        onTouchStart={() =>
+                            preloadOrderDetails(baseUrl, order.id)
+                        }
                         className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-5 rounded-2xl border border-slate-200 p-5 transition hover:border-emerald-300 hover:bg-emerald-50/40 hover:shadow-sm sm:grid-cols-[72px_minmax(0,1fr)_auto_24px] sm:gap-6 sm:p-7"
                     >
                         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-700 sm:h-18 sm:w-18">

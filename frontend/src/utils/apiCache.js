@@ -60,6 +60,27 @@ export function clearCachedJson(cacheKey) {
     }
 }
 
+export function clearCachedJsonByPrefix(cacheKeyPrefix) {
+    for (const cacheKey of apiCache.keys()) {
+        if (cacheKey.startsWith(cacheKeyPrefix)) {
+            apiCache.delete(cacheKey);
+            pendingRequests.delete(cacheKey);
+        }
+    }
+
+    try {
+        const storagePrefix = `${SESSION_PREFIX}${cacheKeyPrefix}`;
+        const matchingKeys = [];
+        for (let index = 0; index < sessionStorage.length; index += 1) {
+            const key = sessionStorage.key(index);
+            if (key?.startsWith(storagePrefix)) matchingKeys.push(key);
+        }
+        matchingKeys.forEach((key) => sessionStorage.removeItem(key));
+    } catch {
+        return;
+    }
+}
+
 export async function fetchCachedJson(
     url,
     {
