@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
@@ -474,6 +475,32 @@ class ReviewTests(APITestCase):
         self.assertEqual(float(self.product.average_rating), 5.0)
         self.assertEqual(self.product.review_count, 1)
 
+    @patch(
+        "store.views.cloudinary.uploader.upload",
+        return_value={"public_id": "reviews/1/photo"},
+    )
+    def test_new_review_response_includes_uploaded_images(self, upload_image):
+        image = SimpleUploadedFile(
+            "photo.jpg",
+            b"review photo",
+            content_type="image/jpeg",
+        )
+
+        response = self.client.post(
+            "/api/reviews/",
+            {
+                "order_item": self.item.id,
+                "rating": 5,
+                "comment": "Excellent",
+                "images": image,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.data["images"]), 1)
+        upload_image.assert_called_once()
+
     def test_item_cannot_be_reviewed_before_delivery(self):
         self.order.status = Order.STATUS_SHIPPED
         self.order.save(update_fields=["status"])
@@ -542,6 +569,21 @@ class ReviewTests(APITestCase):
 
         self.assertTrue(response.data["items"][0]["can_review"])
         self.assertIsNone(response.data["items"][0]["review"])
+
+    def test_order_detail_loads_review_data_in_four_queries(self):
+        Review.objects.create(
+            order_item=self.item,
+            product=self.product,
+            user=self.user,
+            rating=5,
+            comment="Excellent",
+        )
+
+        with self.assertNumQueries(4):
+            response = self.client.get(f"/api/orders/{self.order.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["items"][0]["review"]["rating"], 5)
 
     def test_owner_can_update_review(self):
         review = Review.objects.create(

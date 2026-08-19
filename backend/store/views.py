@@ -453,9 +453,14 @@ def user_orders(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_order_detail(request, pk):
+    order_items = OrderItem.objects.select_related(
+        'product',
+        'review',
+        'review__user',
+    ).prefetch_related('review__images')
     order = (
         Order.objects.filter(user=request.user, pk=pk)
-        .prefetch_related('items__product', 'items__review__user', 'items__review__images')
+        .prefetch_related(Prefetch('items', queryset=order_items))
         .first()
     )
     if not order:
@@ -516,7 +521,7 @@ def create_review(request):
     if len(comment) > 2000:
         return Response({'comment': ['Comment must be 2000 characters or fewer.']}, status=status.HTTP_400_BAD_REQUEST)
 
-    order_item = OrderItem.objects.select_related('order', 'product').filter(
+    order_item = OrderItem.objects.select_related('order', 'product', 'review').filter(
         pk=order_item_id,
         order__user=request.user,
     ).first()
@@ -524,7 +529,11 @@ def create_review(request):
         return Response({'detail': 'This product was not purchased by you.'}, status=status.HTTP_403_FORBIDDEN)
     if order_item.order.status != Order.STATUS_DELIVERED:
         return Response({'detail': 'You can review this product after it is delivered.'}, status=status.HTTP_403_FORBIDDEN)
-    if Review.objects.filter(order_item=order_item).exists():
+    try:
+        order_item.review
+    except Review.DoesNotExist:
+        pass
+    else:
         return Response({'detail': 'This delivered item has already been reviewed.'}, status=status.HTTP_400_BAD_REQUEST)
 
     images = request.FILES.getlist('images')
@@ -542,7 +551,9 @@ def create_review(request):
             rating=rating,
             comment=comment,
         )
-        _save_review_images(review, images)
+        review._prefetched_objects_cache = {
+            'images': _save_review_images(review, images),
+        }
 
     return Response(
         ReviewSerializer(review, context={'request': request}).data,
@@ -575,8 +586,9 @@ def review_detail(request, pk):
     if len(comment) > 2000:
         return Response({'comment': ['Comment must be 2000 characters or fewer.']}, status=status.HTTP_400_BAD_REQUEST)
 
+    existing_images = list(review.images.all())
     images = request.FILES.getlist('images')
-    if review.images.count() + len(images) > 5:
+    if len(existing_images) + len(images) > 5:
         return Response({'images': ['A review can have up to 5 images in total.']}, status=status.HTTP_400_BAD_REQUEST)
     for image in images:
         if image.size > 5 * 1024 * 1024 or not getattr(image, 'content_type', '').startswith('image/'):
@@ -586,7 +598,8 @@ def review_detail(request, pk):
         review.rating = rating
         review.comment = comment
         review.save(update_fields=['rating', 'comment'])
-        _save_review_images(review, images)
+        new_images = _save_review_images(review, images)
+        review._prefetched_objects_cache['images'] = existing_images + new_images
 
     return Response(ReviewSerializer(review, context={'request': request}).data)
 
@@ -609,6 +622,7 @@ def _delete_review_images(image_names):
 
 
 def _save_review_images(review, images):
+    review_images = []
     for image in images:
         safe_name = f"{uuid4().hex}-{os.path.basename(image.name)}"
         if settings.USE_CLOUDINARY_MEDIA:
@@ -624,7 +638,8 @@ def _save_review_images(review, images):
                 f"reviews/{review.id}/{safe_name}",
                 image,
             )
-        ReviewImage.objects.create(review=review, image=image_name)
+        review_images.append(ReviewImage(review=review, image=image_name))
+    return ReviewImage.objects.bulk_create(review_images)
 
 
 @api_view(['DELETE'])

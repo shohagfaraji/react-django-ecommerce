@@ -16,7 +16,12 @@ import {
     FaTimes,
     FaExclamationTriangle,
 } from "react-icons/fa";
-import { authFetch } from "../utils/auth";
+import {
+    authFetch,
+    cacheOrderDetails,
+    fetchOrderDetails,
+    getCachedOrderDetails,
+} from "../utils/auth";
 import { clearProductData } from "../utils/apiCache";
 import { formatDate } from "../utils/orders";
 import StarRating from "../components/StarRating";
@@ -33,24 +38,62 @@ const STATUS_STEPS = [
 function OrderDetailPage() {
     const { id } = useParams();
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
-    const [order, setOrder] = useState(null);
-    const [error, setError] = useState("");
+    const [orderState, setOrderState] = useState(() => ({
+        orderId: id,
+        data: getCachedOrderDetails(id) || null,
+        error: "",
+    }));
     const [reviewingItem, setReviewingItem] = useState(null);
     const [deletingReviewItem, setDeletingReviewItem] = useState(null);
+    const cachedOrder = getCachedOrderDetails(id) || null;
+    const currentOrderState =
+        orderState.orderId === id
+            ? orderState
+            : { orderId: id, data: cachedOrder, error: "" };
+    const order = currentOrderState.data;
+    const error = currentOrderState.error;
 
     useEffect(() => {
+        let active = true;
+        const existingOrder = getCachedOrderDetails(id);
         const loadOrder = async () => {
             try {
-                const res = await authFetch(`${BASEURL}/api/orders/${id}/`);
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.detail || "Order not found.");
-                setOrder(data);
+                const data = await fetchOrderDetails(BASEURL, id, {
+                    force: Boolean(existingOrder),
+                });
+                if (!active) return;
+                setOrderState({ orderId: id, data, error: "" });
             } catch (loadError) {
-                setError(loadError.message || "Could not load this order.");
+                if (!active) return;
+                setOrderState((current) => {
+                    const fallback =
+                        current.orderId === id
+                            ? current.data
+                            : existingOrder || null;
+                    return {
+                        orderId: id,
+                        data: fallback,
+                        error: fallback
+                            ? ""
+                            : loadError.message || "Could not load this order.",
+                    };
+                });
             }
         };
         void loadOrder();
+        return () => {
+            active = false;
+        };
     }, [BASEURL, id]);
+
+    const updateOrder = (update) => {
+        setOrderState((current) => {
+            if (current.orderId !== id || !current.data) return current;
+            const nextOrder = update(current.data);
+            cacheOrderDetails(nextOrder);
+            return { ...current, data: nextOrder };
+        });
+    };
 
     if (error) {
         return (
@@ -145,7 +188,7 @@ function OrderDetailPage() {
                             </span>
                         </div>
                         <div className="mt-7 space-y-5">
-                            {order.items.map((item) => (
+                            {order.items.map((item, index) => (
                                 <article
                                     key={item.id}
                                     className="overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-sm"
@@ -162,6 +205,17 @@ function OrderDetailPage() {
                                                 }
                                                 alt={item.product_name}
                                                 className="h-full w-full object-contain p-1"
+                                                loading={
+                                                    index === 0
+                                                        ? "eager"
+                                                        : "lazy"
+                                                }
+                                                decoding="async"
+                                                fetchPriority={
+                                                    index === 0
+                                                        ? "high"
+                                                        : "auto"
+                                                }
                                             />
                                             <span className="absolute right-1.5 bottom-1.5 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] font-black text-white shadow">
                                                 ×{item.quantity}
@@ -267,7 +321,7 @@ function OrderDetailPage() {
                     onClose={() => setReviewingItem(null)}
                     onSaved={(review) => {
                         clearProductData(reviewingItem.product);
-                        setOrder((current) => ({
+                        updateOrder((current) => ({
                             ...current,
                             items: current.items.map((item) =>
                                 item.id === reviewingItem.id
@@ -286,7 +340,7 @@ function OrderDetailPage() {
                     onClose={() => setDeletingReviewItem(null)}
                     onDeleted={() => {
                         clearProductData(deletingReviewItem.product);
-                        setOrder((current) => ({
+                        updateOrder((current) => ({
                             ...current,
                             items: current.items.map((item) =>
                                 item.id === deletingReviewItem.id

@@ -1,5 +1,6 @@
 import {
     clearCachedJson,
+    clearCachedJsonByPrefix,
     getCachedJson,
     setCachedJson,
 } from "./apiCache";
@@ -7,9 +8,12 @@ import {
 export const PROFILE_CACHE_KEY = "account:profile";
 export const ORDERS_CACHE_KEY = "account:orders";
 export const CART_CACHE_KEY = "account:cart";
+const ORDER_DETAILS_CACHE_PREFIX = "account:order:";
+const ORDER_DETAILS_STALE_MS = 30 * 60 * 1000;
 
 let pendingProfileRequest = null;
 let pendingOrdersRequest = null;
+const pendingOrderDetailRequests = new Map();
 let pendingRefreshRequest = null;
 let accountCacheVersion = 0;
 
@@ -18,6 +22,8 @@ const clearAccountCache = () => {
     clearCachedJson(PROFILE_CACHE_KEY);
     clearCachedJson(ORDERS_CACHE_KEY);
     clearCachedJson(CART_CACHE_KEY);
+    clearCachedJsonByPrefix(ORDER_DETAILS_CACHE_PREFIX);
+    pendingOrderDetailRequests.clear();
     pendingProfileRequest = null;
     pendingOrdersRequest = null;
     pendingRefreshRequest = null;
@@ -191,3 +197,53 @@ export const fetchOrders = async (baseUrl, { force = false } = {}) => {
     pendingOrdersRequest = request;
     return pendingOrdersRequest;
 };
+
+const orderDetailsCacheKey = (orderId) =>
+    `${ORDER_DETAILS_CACHE_PREFIX}${orderId}`;
+
+export const getCachedOrderDetails = (orderId) =>
+    getCachedJson(orderDetailsCacheKey(orderId), ORDER_DETAILS_STALE_MS);
+
+export const cacheOrderDetails = (order) => {
+    if (order?.id) setCachedJson(orderDetailsCacheKey(order.id), order);
+};
+
+export const fetchOrderDetails = async (
+    baseUrl,
+    orderId,
+    { force = false } = {},
+) => {
+    if (!force) {
+        const cached = getCachedOrderDetails(orderId);
+        if (cached) return cached;
+    }
+
+    const requestKey = String(orderId);
+    const pendingRequest = pendingOrderDetailRequests.get(requestKey);
+    if (pendingRequest) return pendingRequest;
+
+    const requestVersion = accountCacheVersion;
+    const request = authFetch(`${baseUrl}/api/orders/${orderId}/`)
+        .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.detail || "Order not found.");
+            if (
+                requestVersion === accountCacheVersion &&
+                getAccessToken()
+            ) {
+                cacheOrderDetails(data);
+            }
+            return data;
+        })
+        .finally(() => {
+            if (pendingOrderDetailRequests.get(requestKey) === request) {
+                pendingOrderDetailRequests.delete(requestKey);
+            }
+        });
+
+    pendingOrderDetailRequests.set(requestKey, request);
+    return request;
+};
+
+export const preloadOrderDetails = (baseUrl, orderId) =>
+    fetchOrderDetails(baseUrl, orderId).catch(() => undefined);

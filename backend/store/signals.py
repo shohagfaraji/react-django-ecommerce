@@ -31,9 +31,13 @@ def refresh_product_rating(product_id):
 
 
 @receiver(pre_save, sender=Review)
-def remember_previous_review_product(sender, instance, **kwargs):
+def remember_previous_review_product(sender, instance, update_fields=None, **kwargs):
     if not instance.pk:
         instance._previous_product_id = None
+        return
+
+    if update_fields is not None and 'product' not in update_fields:
+        instance._previous_product_id = instance.product_id
         return
 
     instance._previous_product_id = (
