@@ -39,6 +39,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from uuid import uuid4
 import cloudinary.uploader
 import os
+from urllib.parse import urlencode
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -87,57 +88,147 @@ def login_token(request):
     })
 
 
-def get_category_tree_ids(category):
-    ids = [category.id]
-    pending = [category.id]
+PRODUCT_LIST_FIELDS = (
+    'id',
+    'category_id',
+    'name',
+    'price',
+    'image',
+    'created_at',
+    'is_weekly_top',
+    'is_hot',
+    'is_featured',
+    'discount_percentage',
+    'average_rating',
+    'review_count',
+    'category__id',
+    'category__name',
+    'category__slug',
+    'category__section',
+    'category__parent_id',
+    'category__image',
+)
+MAX_CATALOG_PAGE_SIZE = 60
 
-    while pending:
-        child_ids = list(
-            Category.objects.filter(parent_id__in=pending, is_active=True)
-            .values_list('id', flat=True)
+
+def product_list_queryset():
+    return Product.objects.select_related('category').only(
+        *PRODUCT_LIST_FIELDS,
+    )
+
+
+def get_category_tree_ids(category_slug):
+    def build_tree_ids():
+        categories = list(
+            Category.objects.filter(is_active=True).values_list(
+                'id',
+                'parent_id',
+                'slug',
+            )
         )
-        pending = [child_id for child_id in child_ids if child_id not in ids]
-        ids.extend(pending)
+        root_id = next(
+            (
+                category_id
+                for category_id, _, slug in categories
+                if slug.lower() == category_slug
+            ),
+            None,
+        )
+        if root_id is None:
+            return []
 
-    return ids
+        children_by_parent = {}
+        for category_id, parent_id, _ in categories:
+            children_by_parent.setdefault(parent_id, []).append(category_id)
+
+        category_ids = []
+        pending = [root_id]
+        while pending:
+            category_id = pending.pop()
+            category_ids.append(category_id)
+            pending.extend(children_by_parent.get(category_id, []))
+        return category_ids
+
+    return cached_api_data(
+        f'category-tree:{category_slug}',
+        build_tree_ids,
+        timeout=600,
+    )
+
+
+def get_catalog_window(request):
+    raw_limit = request.GET.get('limit')
+    if raw_limit in (None, ''):
+        return None, 0
+
+    try:
+        limit = int(raw_limit)
+        offset = int(request.GET.get('offset', 0))
+    except (TypeError, ValueError):
+        return None, 0
+
+    limit = min(max(limit, 1), MAX_CATALOG_PAGE_SIZE)
+    offset = max(offset, 0)
+    return limit, offset
+
+
+def apply_catalog_window(products, limit, offset):
+    if limit is None:
+        return products
+    return products[offset:offset + limit]
+
+
+def catalog_cache_key(prefix, limit, offset):
+    if limit is None:
+        return prefix
+    return f'{prefix}:limit={limit}:offset={offset}'
 
 @api_view(['GET'])
 def get_products(request):
-    category_slug = request.GET.get('category')
-    section = request.GET.get('section')
-    search_query = request.GET.get('search')
-    limit = request.GET.get('limit')
+    category_slug = request.GET.get('category', '').strip().lower()
+    section = request.GET.get('section', '').strip().lower()
+    search_query = ' '.join(request.GET.get('search', '').split()).lower()
+    limit, offset = get_catalog_window(request)
+    cache_params = [
+        ('category', category_slug),
+        ('section', section),
+        ('search', search_query),
+        ('limit', '' if limit is None else limit),
+        ('offset', offset),
+    ]
 
-    products = Product.objects.select_related('category').order_by('-created_at')
+    def build_product_data():
+        products = product_list_queryset().order_by('-created_at', '-id')
 
-    if category_slug:
-        category = Category.objects.filter(slug__iexact=category_slug).first()
-        if category:
-            products = products.filter(category_id__in=get_category_tree_ids(category))
-        else:
-            products = products.none()
+        if category_slug:
+            category_ids = get_category_tree_ids(category_slug)
+            products = (
+                products.filter(category_id__in=category_ids)
+                if category_ids
+                else products.none()
+            )
 
-    if section:
-        products = products.filter(category__section__iexact=section)
+        if section:
+            products = products.filter(category__section=section)
 
-    if search_query:
-        products = products.filter(
-            Q(name__icontains=search_query) |
-            Q(description__icontains=search_query) |
-            Q(category__name__icontains=search_query) |
-            Q(category__parent__name__icontains=search_query)
-        )
+        if search_query:
+            products = products.filter(
+                Q(name__icontains=search_query) |
+                Q(description__icontains=search_query) |
+                Q(category__name__icontains=search_query) |
+                Q(category__parent__name__icontains=search_query)
+            )
 
-    if limit:
-        try:
-            products = products[:int(limit)]
-        except (ValueError, TypeError):
-            pass
+        products = apply_catalog_window(products, limit, offset)
+        return ProductListSerializer(
+            products,
+            many=True,
+            context={'request': request},
+        ).data
 
-    cache_key = f"products:{request.GET.urlencode()}"
     data = cached_api_data(
-        cache_key,
-        lambda: ProductListSerializer(products, many=True, context={'request': request}).data,
+        f'products:{urlencode(cache_params)}',
+        build_product_data,
         timeout=180,
     )
     return Response(data)
@@ -683,11 +774,13 @@ def _delete_profile_picture(picture_name):
 
 @api_view(['GET'])
 def get_weekly_top_selling(request):
-    products = Product.objects.filter(
+    limit, offset = get_catalog_window(request)
+    products = product_list_queryset().filter(
         is_weekly_top=True,
-    ).select_related('category').order_by('-created_at')
+    ).order_by('-created_at', '-id')
+    products = apply_catalog_window(products, limit, offset)
     data = cached_api_data(
-        "products:weekly-top-selling",
+        catalog_cache_key('products:weekly-top-selling', limit, offset),
         lambda: ProductListSerializer(products, many=True, context={'request': request}).data,
         timeout=300,
     )
@@ -696,9 +789,11 @@ def get_weekly_top_selling(request):
 
 @api_view(['GET'])
 def get_new_arrivals(request):
-    products = Product.objects.select_related('category').order_by('-created_at')
+    limit, offset = get_catalog_window(request)
+    products = product_list_queryset().order_by('-created_at', '-id')
+    products = apply_catalog_window(products, limit, offset)
     data = cached_api_data(
-        "products:new-arrivals",
+        catalog_cache_key('products:new-arrivals', limit, offset),
         lambda: ProductListSerializer(products, many=True, context={'request': request}).data,
         timeout=180,
     )
@@ -706,11 +801,13 @@ def get_new_arrivals(request):
 
 @api_view(['GET'])
 def get_sale_products(request):
-    products = Product.objects.select_related('category').filter(
+    limit, offset = get_catalog_window(request)
+    products = product_list_queryset().filter(
         discount_percentage__gt=0,
-    ).order_by('-discount_percentage', '-created_at')
+    ).order_by('-discount_percentage', '-created_at', '-id')
+    products = apply_catalog_window(products, limit, offset)
     data = cached_api_data(
-        "products:sale",
+        catalog_cache_key('products:sale', limit, offset),
         lambda: ProductListSerializer(products, many=True, context={'request': request}).data,
         timeout=120,
     )
@@ -747,11 +844,11 @@ def get_homepage(request):
             Q(ends_at__isnull=True) | Q(ends_at__gte=now),
         ).order_by('sort_order', '-created_at')[:8]
 
-        deal_products = Product.objects.select_related('category').filter(
+        deal_products = product_list_queryset().filter(
             discount_percentage__gt=0,
         ).order_by('-discount_percentage', '-created_at')[:10]
 
-        hot_products = Product.objects.select_related('category').filter(
+        hot_products = product_list_queryset().filter(
             Q(is_hot=True) | Q(is_weekly_top=True)
         ).order_by('-is_hot', '-is_weekly_top', '-created_at')[:10]
 
@@ -769,9 +866,7 @@ def get_homepage(request):
         category_sections = []
         for category in featured_categories:
             child_ids = [child.id for child in category.children.all()]
-            category_products = Product.objects.select_related(
-                'category'
-            ).filter(
+            category_products = product_list_queryset().filter(
                 Q(category=category) | Q(category_id__in=child_ids)
             )
             products = category_products.order_by(

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
     FaArrowRight,
     FaChevronLeft,
@@ -17,49 +17,74 @@ import {
     getCachedJson,
     rememberProducts,
 } from "../utils/apiCache";
+import {
+    CATALOG_PAGE_SIZE,
+    fetchProductListingPage,
+    getCachedProductListingPage,
+    productListingPageCacheKey,
+} from "../utils/catalog";
+import { preloadRoute } from "../utils/routePreload";
 
 const loadedHeroImages = new Set();
 const HOME_CATEGORY_PRIORITY = ["clothing", "toys", "garden"];
 
 function ProductList() {
+    const { pathname } = useLocation();
     const [searchParams] = useSearchParams();
-    const category = searchParams.get("category");
-    const search = searchParams.get("search");
-    const isFiltered = !!(category || search);
-
-    const [products, setProducts] = useState(
-        () =>
-            getCachedJson(
-                buildProductsCacheKey(category, search, isFiltered),
-            ) || [],
+    const category = searchParams.get("category") || "";
+    const search = searchParams.get("search") || "";
+    const isCatalogRoute = pathname === "/products";
+    const isListing = Boolean(isCatalogRoute || category || search);
+    const listingCacheKey = isListing
+        ? productListingPageCacheKey({ category, search })
+        : "";
+    const cachedListing = isListing
+        ? getCachedProductListingPage({ category, search })
+        : undefined;
+    const [listingRequest, setListingRequest] = useState(() =>
+        createListingRequest(listingCacheKey, cachedListing),
     );
+    const currentListing =
+        listingRequest.cacheKey === listingCacheKey
+            ? listingRequest
+            : createListingRequest(listingCacheKey, cachedListing);
+    const cachedNewArrivals = isListing
+        ? undefined
+        : getCachedJson("products:limit=15");
+    const cachedHome = isListing ? undefined : getCachedJson("homepage");
+    const [newArrivals, setNewArrivals] = useState(
+        () => cachedNewArrivals || [],
+    );
+    const [newArrivalsLoading, setNewArrivalsLoading] = useState(
+        () => !cachedNewArrivals,
+    );
+    const [newArrivalsError, setNewArrivalsError] = useState(null);
     const [homeData, setHomeData] = useState(
-        () => getCachedJson("homepage") || null,
-    );
-    const [loading, setLoading] = useState(
-        () =>
-            !getCachedJson(buildProductsCacheKey(category, search, isFiltered)),
+        () => cachedHome || null,
     );
     const [homeLoading, setHomeLoading] = useState(
-        () => !getCachedJson("homepage"),
+        () => !cachedHome,
     );
     const [newArrivalsRequested, setNewArrivalsRequested] = useState(false);
     const [homeError, setHomeError] = useState(null);
-    const [productsError, setProductsError] = useState(null);
+    const visibleHomeData = homeData || cachedHome || null;
+    const visibleHomeLoading = !visibleHomeData && homeLoading;
+    const visibleNewArrivals = newArrivals.length
+        ? newArrivals
+        : cachedNewArrivals || [];
+    const visibleNewArrivalsLoading =
+        visibleNewArrivals.length === 0 && newArrivalsLoading;
 
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
     useEffect(() => {
-        if (isFiltered) return undefined;
+        if (isListing) return undefined;
+        let active = true;
         const controller = new AbortController();
         const cachedHome = getCachedJson("homepage");
 
         if (cachedHome) {
-            setHomeData(cachedHome);
-            setHomeLoading(false);
             rememberHomeProducts(cachedHome);
-        } else {
-            setHomeLoading(true);
         }
 
         fetchCachedJson(`${BASEURL}/api/homepage/`, {
@@ -68,71 +93,91 @@ function ProductList() {
             signal: controller.signal,
         })
             .then((data) => {
+                if (!active) return;
                 setHomeError(null);
                 setHomeData(data);
                 rememberHomeProducts(data);
                 setHomeLoading(false);
             })
             .catch((err) => {
-                if (err.name !== "AbortError") {
+                if (active && err.name !== "AbortError") {
                     setHomeError(err.message);
                     setHomeLoading(false);
                 }
             });
 
-        return () => controller.abort();
-    }, [BASEURL, isFiltered]);
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [BASEURL, isListing]);
 
     useEffect(() => {
-        const shouldFetchProducts = isFiltered || newArrivalsRequested;
-        if (!shouldFetchProducts) return undefined;
+        if (!isListing) return undefined;
+        let active = true;
 
-        const controller = new AbortController();
-        const params = new URLSearchParams({ limit: isFiltered ? "40" : "15" });
-
-        if (category) params.set("category", category);
-        if (search) params.set("search", search);
-
-        const cacheKey = `products:${params.toString()}`;
-        const cachedProducts = getCachedJson(cacheKey);
-
-        if (cachedProducts) {
-            setProducts(cachedProducts);
-            rememberProducts(cachedProducts);
-            setLoading(false);
-        } else {
-            setLoading(true);
-        }
-
-        fetchCachedJson(`${BASEURL}/api/products/?${params.toString()}`, {
-            cacheKey,
-            errorMessage: "Failed to fetch products",
-            signal: controller.signal,
-        })
-            .then((data) => {
-                setProductsError(null);
-                rememberProducts(data);
-                setProducts(data);
-                setLoading(false);
+        fetchProductListingPage(BASEURL, { category, search })
+            .then((products) => {
+                if (!active) return;
+                setListingRequest({
+                    cacheKey: listingCacheKey,
+                    products: products.slice(0, CATALOG_PAGE_SIZE),
+                    loading: false,
+                    loadingMore: false,
+                    error: "",
+                    nextOffset: CATALOG_PAGE_SIZE,
+                    hasMore: products.length > CATALOG_PAGE_SIZE,
+                });
             })
-            .catch((err) => {
-                if (err.name !== "AbortError") {
-                    setProductsError(err.message);
-                    setLoading(false);
-                }
+            .catch((error) => {
+                if (!active) return;
+                setListingRequest((current) => ({
+                    ...(current.cacheKey === listingCacheKey
+                        ? current
+                        : createListingRequest(
+                              listingCacheKey,
+                              getCachedProductListingPage({ category, search }),
+                          )),
+                    loading: false,
+                    error: error.message,
+                    hasMore: false,
+                }));
             });
 
-        return () => controller.abort();
-    }, [
-        BASEURL,
-        category,
-        search,
-        isFiltered,
-        newArrivalsRequested,
-    ]);
+        return () => {
+            active = false;
+        };
+    }, [BASEURL, category, isListing, listingCacheKey, search]);
 
     useEffect(() => {
-        if (isFiltered || homeLoading || newArrivalsRequested) {
+        if (isListing || !newArrivalsRequested) return undefined;
+        let active = true;
+        const params = new URLSearchParams({ limit: "15" });
+
+        fetchCachedJson(`${BASEURL}/api/products/?${params}`, {
+            cacheKey: "products:limit=15",
+            errorMessage: "Failed to fetch products",
+        })
+            .then((products) => {
+                if (!active) return;
+                rememberProducts(products);
+                setNewArrivals(products);
+                setNewArrivalsError(null);
+                setNewArrivalsLoading(false);
+            })
+            .catch((error) => {
+                if (!active) return;
+                setNewArrivalsError(error.message);
+                setNewArrivalsLoading(false);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [BASEURL, isListing, newArrivalsRequested]);
+
+    useEffect(() => {
+        if (isListing || visibleHomeLoading || newArrivalsRequested) {
             return undefined;
         }
 
@@ -154,19 +199,63 @@ function ProductList() {
                 window.cancelIdleCallback(idleId);
             }
         };
-    }, [homeLoading, isFiltered, newArrivalsRequested]);
+    }, [isListing, newArrivalsRequested, visibleHomeLoading]);
 
     const title = useMemo(() => {
         if (search) return `Search results for "${search}"`;
         if (category) return category.replace(/-/g, " ");
-        return "New arrivals";
+        return "All products";
     }, [category, search]);
 
-    const pageError = isFiltered ? productsError : homeError;
+    const pageError = isListing
+        ? currentListing.error && currentListing.products.length === 0
+            ? currentListing.error
+            : null
+        : homeError;
+
+    const loadMoreProducts = async () => {
+        const offset = currentListing.nextOffset;
+        setListingRequest((current) =>
+            current.cacheKey === listingCacheKey
+                ? { ...current, loadingMore: true }
+                : current,
+        );
+        try {
+            const products = await fetchProductListingPage(BASEURL, {
+                category,
+                search,
+                offset,
+            });
+            setListingRequest((current) => {
+                if (current.cacheKey !== listingCacheKey) return current;
+                return {
+                    ...current,
+                    products: mergeProducts(
+                        current.products,
+                        products.slice(0, CATALOG_PAGE_SIZE),
+                    ),
+                    loadingMore: false,
+                    error: "",
+                    nextOffset: offset + CATALOG_PAGE_SIZE,
+                    hasMore: products.length > CATALOG_PAGE_SIZE,
+                };
+            });
+        } catch (error) {
+            setListingRequest((current) =>
+                current.cacheKey === listingCacheKey
+                    ? {
+                          ...current,
+                          loadingMore: false,
+                          error: error.message,
+                      }
+                    : current,
+            );
+        }
+    };
 
     if (pageError) {
         return (
-            <main className="min-h-screen bg-[#f6f7f9] px-4 pt-40 text-center text-rose-600">
+            <main className="min-h-screen bg-[#f6f7f9] px-4 pt-40 text-center text-[#b62324]">
                 {pageError}
             </main>
         );
@@ -175,39 +264,58 @@ function ProductList() {
     return (
         <main className="min-h-screen bg-[#f6f7f9] pt-36 pb-12 md:pt-28">
             <div className="mx-auto max-w-[1440px] space-y-10 px-4 sm:px-6 lg:px-8">
-                {isFiltered ? (
+                {isListing ? (
                     <>
                         <FilteredHeader
                             title={title}
-                            resultCount={products.length}
+                            resultCount={currentListing.products.length}
                             isSearch={!!search}
+                            isCatalog={isCatalogRoute && !category && !search}
+                            hasMore={currentListing.hasMore}
                         />
                         <ProductSection
                             title={title}
                             eyebrow="Products"
                             icon={<FaSearch />}
-                            products={products}
-                            loading={loading}
-                            emptyCopy="No products matched this category yet."
+                            products={currentListing.products}
+                            loading={currentListing.loading}
+                            emptyCopy={
+                                isCatalogRoute && !category && !search
+                                    ? "No products are available yet."
+                                    : "No products matched this category yet."
+                            }
+                            prioritizeImages
                         />
+                        {currentListing.hasMore && !currentListing.loading && (
+                            <LoadMoreButton
+                                loading={currentListing.loadingMore}
+                                onClick={loadMoreProducts}
+                            />
+                        )}
+                        {currentListing.error &&
+                            currentListing.products.length > 0 && (
+                                <p className="text-center text-sm font-bold text-[#b62324]">
+                                    {currentListing.error}
+                                </p>
+                            )}
                     </>
                 ) : (
                     <>
                         <HomeSlider
-                            banners={homeData?.hero_banners || []}
-                            fallbackProducts={getHomeProducts(homeData).slice(
+                            banners={visibleHomeData?.hero_banners || []}
+                            fallbackProducts={getHomeProducts(visibleHomeData).slice(
                                 0,
                                 4,
                             )}
-                            loading={homeLoading}
+                            loading={visibleHomeLoading}
                         />
 
                         <ProductSection
                             title="Deals"
                             eyebrow="Discounted products"
                             icon={<FaTags />}
-                            products={homeData?.offer_products || []}
-                            loading={homeLoading}
+                            products={visibleHomeData?.offer_products || []}
+                            loading={visibleHomeLoading}
                             viewAllLink="/sale"
                             emptyCopy="No discounted products right now."
                             responsiveLayout="ten-product-shelf"
@@ -217,14 +325,14 @@ function ProductList() {
                             title="Most Selling & Hot"
                             eyebrow="Customer demand"
                             icon={<FaFire />}
-                            products={homeData?.hot_products || []}
-                            loading={homeLoading}
+                            products={visibleHomeData?.hot_products || []}
+                            loading={visibleHomeLoading}
                             viewAllLink="/weekly-top-selling"
                             emptyCopy="Top-selling products will appear here as your catalog grows."
                             responsiveLayout="ten-product-shelf"
                         />
 
-                        {getPrioritizedCategorySections(homeData).map(
+                        {getPrioritizedCategorySections(visibleHomeData).map(
                             (section) => (
                                 <ProductSection
                                     key={section.category.slug}
@@ -232,7 +340,7 @@ function ProductList() {
                                     eyebrow="Shop by category"
                                     icon={<FaShoppingBag />}
                                     products={section.products}
-                                    loading={homeLoading}
+                                    loading={visibleHomeLoading}
                                     viewAllLink={`/products?category=${section.category.slug}`}
                                     emptyCopy=""
                                     responsiveLayout={getCategoryLayout(
@@ -242,12 +350,12 @@ function ProductList() {
                             ),
                         )}
 
-                        {!loading && !productsError && (
+                        {!visibleNewArrivalsLoading && !newArrivalsError && (
                             <ProductSection
                                 title="New Arrivals"
                                 eyebrow="Fresh in store"
                                 icon={<FaStar />}
-                                products={products}
+                                products={visibleNewArrivals}
                                 loading={false}
                                 viewAllLink="/new-arrivals"
                                 emptyCopy="No products have been added yet."
@@ -261,13 +369,25 @@ function ProductList() {
     );
 }
 
-function buildProductsCacheKey(category, search, isFiltered) {
-    const params = new URLSearchParams({ limit: isFiltered ? "40" : "15" });
+function createListingRequest(cacheKey, cachedProducts) {
+    const products = cachedProducts || [];
+    return {
+        cacheKey,
+        products: products.slice(0, CATALOG_PAGE_SIZE),
+        loading: cachedProducts === undefined,
+        loadingMore: false,
+        error: "",
+        nextOffset: CATALOG_PAGE_SIZE,
+        hasMore: products.length > CATALOG_PAGE_SIZE,
+    };
+}
 
-    if (category) params.set("category", category);
-    if (search) params.set("search", search);
-
-    return `products:${params.toString()}`;
+function mergeProducts(current, additions) {
+    const productsById = new Map(
+        current.map((product) => [product.id, product]),
+    );
+    additions.forEach((product) => productsById.set(product.id, product));
+    return Array.from(productsById.values());
 }
 
 function rememberHomeProducts(homeData) {
@@ -318,6 +438,7 @@ function getCategoryLayout(section) {
 }
 
 function HomeSlider({ banners, fallbackProducts, loading }) {
+    const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const [active, setActive] = useState(0);
     const hasBanners = banners.length > 0;
     const slides = hasBanners ? banners : buildFallbackSlides(fallbackProducts);
@@ -330,13 +451,13 @@ function HomeSlider({ banners, fallbackProducts, loading }) {
         return () => clearInterval(timer);
     }, [slides.length]);
 
-    useEffect(() => {
-        setActive(0);
-    }, [hasBanners]);
-
     if (loading) return <HeroSkeleton />;
 
-    const slide = slides[active] || buildFallbackSlides([])[0];
+    const activeIndex = slides.length ? active % slides.length : 0;
+    const slide = slides[activeIndex] || buildFallbackSlides([])[0];
+    const primaryTarget = slide.target_url || "/products";
+    const preloadPrimaryTarget = () => preloadRoute(BASEURL, primaryTarget);
+    const preloadSale = () => preloadRoute(BASEURL, "/sale");
 
     return (
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -354,7 +475,10 @@ function HomeSlider({ banners, fallbackProducts, loading }) {
                     </p>
                     <div className="mt-7 flex flex-wrap gap-3">
                         <Link
-                            to={slide.target_url || "/products"}
+                            to={primaryTarget}
+                            onMouseEnter={preloadPrimaryTarget}
+                            onFocus={preloadPrimaryTarget}
+                            onTouchStart={preloadPrimaryTarget}
                             className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-slate-950 px-5 text-sm font-black text-white transition hover:bg-slate-800"
                         >
                             {slide.button_text || "Shop now"}
@@ -362,6 +486,9 @@ function HomeSlider({ banners, fallbackProducts, loading }) {
                         </Link>
                         <Link
                             to="/sale"
+                            onMouseEnter={preloadSale}
+                            onFocus={preloadSale}
+                            onTouchStart={preloadSale}
                             className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 px-5 text-sm font-black text-slate-800 transition hover:bg-slate-50"
                         >
                             View offers
@@ -382,7 +509,7 @@ function HomeSlider({ banners, fallbackProducts, loading }) {
                                 className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow"
                                 onClick={() =>
                                     setActive(
-                                        (active - 1 + slides.length) %
+                                        (activeIndex - 1 + slides.length) %
                                             slides.length,
                                     )
                                 }
@@ -394,7 +521,7 @@ function HomeSlider({ banners, fallbackProducts, loading }) {
                                 type="button"
                                 className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow"
                                 onClick={() =>
-                                    setActive((active + 1) % slides.length)
+                                    setActive((activeIndex + 1) % slides.length)
                                 }
                                 aria-label="Next banner"
                             >
@@ -413,19 +540,10 @@ function SliderVisual({ image, title }) {
         image && loadedHeroImages.has(image) ? image : null,
     );
     const [incomingImage, setIncomingImage] = useState(null);
-    const [status, setStatus] = useState(image ? "loading" : "missing");
+    const [failedImage, setFailedImage] = useState(null);
 
     useEffect(() => {
-        if (!image) {
-            setStatus("missing");
-            setIncomingImage(null);
-            return undefined;
-        }
-
-        if (image === visibleImage) {
-            setStatus("loaded");
-            return undefined;
-        }
+        if (!image || image === visibleImage) return undefined;
 
         let cancelled = false;
         let transitionTimer;
@@ -433,7 +551,7 @@ function SliderVisual({ image, title }) {
         const revealImage = () => {
             if (cancelled) return;
             setIncomingImage(image);
-            setStatus("loaded");
+            setFailedImage(null);
             transitionTimer = setTimeout(() => {
                 if (cancelled) return;
                 setVisibleImage(image);
@@ -446,14 +564,13 @@ function SliderVisual({ image, title }) {
         } else {
             const preview = new Image();
             preview.fetchPriority = "high";
-            setStatus(visibleImage ? "loading-next" : "loading");
 
             preview.onload = () => {
                 loadedHeroImages.add(image);
                 revealImage();
             };
             preview.onerror = () => {
-                if (!cancelled) setStatus(visibleImage ? "loaded" : "failed");
+                if (!cancelled) setFailedImage(image);
             };
             preview.src = image;
         }
@@ -464,7 +581,7 @@ function SliderVisual({ image, title }) {
         };
     }, [image, visibleImage]);
 
-    if (visibleImage || incomingImage) {
+    if (image && (visibleImage || incomingImage)) {
         return (
             <div className="absolute inset-0 min-h-[300px] overflow-hidden bg-slate-950">
                 {visibleImage && (
@@ -491,7 +608,7 @@ function SliderVisual({ image, title }) {
         );
     }
 
-    if (image && status === "loading") {
+    if (image && failedImage !== image) {
         return (
             <div className="relative h-full min-h-[300px] overflow-hidden">
                 <HeroImagePlaceholder title={title} subdued />
@@ -500,19 +617,6 @@ function SliderVisual({ image, title }) {
                     aria-hidden="true"
                 />
             </div>
-        );
-    }
-
-    if (image && status === "loaded") {
-        return (
-            <div
-                role="img"
-                aria-label={title}
-                className="absolute inset-0 min-h-[300px] bg-cover bg-center transition-opacity duration-500"
-                style={{
-                    backgroundImage: `url("${image}")`,
-                }}
-            />
         );
     }
 
@@ -560,11 +664,17 @@ function buildFallbackSlides(products) {
     ];
 }
 
-function FilteredHeader({ title, resultCount, isSearch }) {
+function FilteredHeader({
+    title,
+    resultCount,
+    isSearch,
+    isCatalog,
+    hasMore,
+}) {
     return (
         <section className="rounded-xl border border-slate-200 bg-white px-5 py-6 shadow-sm sm:px-6">
             <p className="text-xs font-black uppercase tracking-wide text-slate-500">
-                {isSearch ? "Search" : "Department"}
+                {isSearch ? "Search" : isCatalog ? "Catalog" : "Department"}
             </p>
             <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -572,18 +682,34 @@ function FilteredHeader({ title, resultCount, isSearch }) {
                         {title}
                     </h1>
                     <p className="mt-2 text-sm text-slate-500">
-                        {resultCount} product{resultCount === 1 ? "" : "s"}{" "}
-                        found
+                        {resultCount}
+                        {hasMore ? "+" : ""} product
+                        {resultCount === 1 && !hasMore ? "" : "s"} loaded
                     </p>
                 </div>
                 <Link
                     to="/"
                     className="inline-flex h-10 w-fit items-center justify-center rounded-md border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
                 >
-                    Clear filters
+                    {isCatalog ? "Back to home" : "Clear filters"}
                 </Link>
             </div>
         </section>
+    );
+}
+
+function LoadMoreButton({ loading, onClick }) {
+    return (
+        <div className="text-center">
+            <button
+                type="button"
+                onClick={onClick}
+                disabled={loading}
+                className="h-12 rounded-xl bg-slate-950 px-8 text-base font-black text-white transition hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60"
+            >
+                {loading ? "Loading products..." : "Load more products"}
+            </button>
+        </div>
     );
 }
 
@@ -596,7 +722,10 @@ function ProductSection({
     viewAllLink,
     emptyCopy,
     responsiveLayout,
+    prioritizeImages = false,
 }) {
+    const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
+    const preloadViewAll = () => preloadRoute(BASEURL, viewAllLink);
     if (!loading && !products.length && !emptyCopy) return null;
 
     return (
@@ -616,6 +745,9 @@ function ProductSection({
                 {viewAllLink && (
                     <Link
                         to={viewAllLink}
+                        onMouseEnter={preloadViewAll}
+                        onFocus={preloadViewAll}
+                        onTouchStart={preloadViewAll}
                         className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-slate-300 px-3 text-sm font-bold text-slate-700 transition hover:bg-white sm:px-4"
                     >
                         <span className="hidden sm:inline">View all</span>
@@ -647,7 +779,12 @@ function ProductSection({
                                   index,
                               )}
                           >
-                              <ProductCard product={product} />
+                              <ProductCard
+                                  product={product}
+                                  prioritizeImage={
+                                      prioritizeImages && index < 2
+                                  }
+                              />
                           </div>
                       ))}
 

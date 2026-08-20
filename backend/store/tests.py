@@ -136,6 +136,93 @@ class ProductLoadingTests(APITestCase):
         self.assertEqual(cached_response.data["id"], self.product.id)
 
 
+class CatalogLoadingTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.parent = Category.objects.create(
+            name="Catalog Parent",
+            slug="catalog-parent",
+        )
+        self.child = Category.objects.create(
+            name="Catalog Child",
+            slug="catalog-child",
+            parent=self.parent,
+        )
+        self.products = [
+            make_product(
+                self.child,
+                name=f"Catalog Product {index}",
+                discount_percentage=10,
+                is_weekly_top=True,
+            )
+            for index in range(5)
+        ]
+
+    def test_category_page_is_cached_without_repeat_queries(self):
+        with self.assertNumQueries(2):
+            response = self.client.get(
+                "/api/products/?category=CATALOG-PARENT&limit=3&offset=0",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+
+        with self.assertNumQueries(0):
+            cached_response = self.client.get(
+                "/api/products/?offset=0&limit=3&category=catalog-parent",
+            )
+
+        self.assertEqual(cached_response.data, response.data)
+
+    def test_category_tree_is_reused_by_later_pages(self):
+        self.client.get(
+            "/api/products/?category=catalog-parent&limit=2&offset=0",
+        )
+
+        with self.assertNumQueries(1):
+            response = self.client.get(
+                "/api/products/?category=catalog-parent&limit=2&offset=2",
+            )
+
+        self.assertEqual(len(response.data), 2)
+
+    def test_catalog_query_does_not_select_product_description(self):
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get("/api/products/?limit=3&offset=0")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        product_queries = [
+            query["sql"]
+            for query in queries.captured_queries
+            if 'FROM "store_product"' in query["sql"]
+        ]
+        self.assertEqual(len(product_queries), 1)
+        self.assertNotIn(
+            '"store_product"."description"',
+            product_queries[0],
+        )
+
+    def test_dedicated_catalog_endpoints_support_cached_pages(self):
+        endpoints = [
+            "/api/products/new-arrivals/",
+            "/api/products/sale/",
+            "/api/products/weekly-top-selling/",
+        ]
+
+        for endpoint in endpoints:
+            with self.subTest(endpoint=endpoint):
+                cache.clear()
+                url = f"{endpoint}?limit=3&offset=1"
+                with self.assertNumQueries(1):
+                    response = self.client.get(url)
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(len(response.data), 3)
+
+                with self.assertNumQueries(0):
+                    cached_response = self.client.get(url)
+                self.assertEqual(cached_response.data, response.data)
+
+
 class AuthTests(APITestCase):
     def setUp(self):
         User.objects.create_user(username="loginuser", password="pass123")

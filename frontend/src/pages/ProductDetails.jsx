@@ -18,6 +18,7 @@ import {
 } from "../utils/apiCache";
 import StarRating from "../components/StarRating";
 import { formatDate } from "../utils/orders";
+import { preloadRoute } from "../utils/routePreload";
 
 const REVIEWS_STALE_MS = 2 * 60 * 1000;
 
@@ -198,6 +199,7 @@ function ProductDetails() {
         }
 
         localStorage.setItem("compareList", JSON.stringify(compareList));
+        preloadRoute(BASEURL, "/compare");
 
         if (compareList.length === 2) {
             navigate("/compare");
@@ -288,6 +290,15 @@ function ProductDetails() {
 
                             <button
                                 onClick={handleCompare}
+                                onMouseEnter={() =>
+                                    preloadRoute(BASEURL, "/compare")
+                                }
+                                onFocus={() =>
+                                    preloadRoute(BASEURL, "/compare")
+                                }
+                                onTouchStart={() =>
+                                    preloadRoute(BASEURL, "/compare")
+                                }
                                 className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-slate-300 px-6 text-sm font-black text-slate-800 transition hover:bg-slate-50"
                                 type="button"
                             >
