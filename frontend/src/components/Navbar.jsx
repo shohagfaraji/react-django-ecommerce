@@ -13,6 +13,7 @@ import {
     getAccessToken,
     getCachedProfile,
 } from "../utils/auth.js";
+import { preloadRoute } from "../utils/routePreload";
 
 const DEFAULT_AVATAR = "/default-avatar.svg";
 
@@ -112,7 +113,9 @@ function Navbar({ onMenuToggle }) {
         const term = search.trim();
         if (term) {
             setSearchDraft({ query: term, value: term });
-            navigate(`/?search=${encodeURIComponent(term)}`);
+            const target = `/?search=${encodeURIComponent(term)}`;
+            preloadRoute(BASEURL, target);
+            navigate(target);
         }
     };
 

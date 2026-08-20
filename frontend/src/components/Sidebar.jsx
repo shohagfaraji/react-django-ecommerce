@@ -15,6 +15,7 @@ import {
     FaTshirt,
 } from "react-icons/fa";
 import { fetchCachedJson, getCachedJson } from "../utils/apiCache";
+import { preloadRoute } from "../utils/routePreload";
 
 const sectionIcons = {
     clothing: <FaTshirt />,
@@ -87,12 +88,6 @@ function Sidebar({ isOpen, onOpen, onClose }) {
 
     useEffect(() => {
         const controller = new AbortController();
-        const cachedCategories = getCachedJson(CATEGORIES_CACHE_KEY);
-
-        if (Array.isArray(cachedCategories) && cachedCategories.length) {
-            setCategories(cachedCategories);
-        }
-
         fetchCachedJson(`${BASEURL}/api/categories/`, {
             cacheKey: CATEGORIES_CACHE_KEY,
             signal: controller.signal,
@@ -109,9 +104,15 @@ function Sidebar({ isOpen, onOpen, onClose }) {
     }, [BASEURL]);
 
     const openCategory = (slug) => {
-        navigate(`/products?category=${slug}`);
+        const target = `/products?category=${slug}`;
+        preloadRoute(BASEURL, target);
+        navigate(target);
         if (window.innerWidth < 768) onClose();
     };
+
+    const preloadCategory = (slug) =>
+        preloadRoute(BASEURL, `/products?category=${slug}`);
+    const preloadSale = () => preloadRoute(BASEURL, "/sale");
 
     return (
         <>
@@ -156,6 +157,13 @@ function Sidebar({ isOpen, onOpen, onClose }) {
                                 type="button"
                                 className="department-main"
                                 onClick={() => openCategory(category.slug)}
+                                onMouseEnter={() =>
+                                    preloadCategory(category.slug)
+                                }
+                                onFocus={() => preloadCategory(category.slug)}
+                                onTouchStart={() =>
+                                    preloadCategory(category.slug)
+                                }
                             >
                                 <span className="department-icon">
                                     {sectionIcons[category.section] ||
@@ -177,6 +185,15 @@ function Sidebar({ isOpen, onOpen, onClose }) {
                                             onClick={() =>
                                                 openCategory(child.slug)
                                             }
+                                            onMouseEnter={() =>
+                                                preloadCategory(child.slug)
+                                            }
+                                            onFocus={() =>
+                                                preloadCategory(child.slug)
+                                            }
+                                            onTouchStart={() =>
+                                                preloadCategory(child.slug)
+                                            }
                                         >
                                             {child.name}
                                         </button>
@@ -189,6 +206,9 @@ function Sidebar({ isOpen, onOpen, onClose }) {
 
                 <Link
                     to="/sale"
+                    onMouseEnter={preloadSale}
+                    onFocus={preloadSale}
+                    onTouchStart={preloadSale}
                     className="sidebar-promo"
                     onClick={() => {
                         if (window.innerWidth < 768) onClose();

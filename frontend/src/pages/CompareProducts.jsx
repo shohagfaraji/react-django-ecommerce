@@ -6,7 +6,6 @@ import { FaBalanceScale, FaShoppingCart, FaTimes } from "react-icons/fa";
 import {
     fetchCachedJson,
     getCachedProduct,
-    preloadImage,
     rememberProductDetails,
     productDetailsCacheKey,
 } from "../utils/apiCache";
@@ -31,25 +30,33 @@ function CompareProducts() {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
     useEffect(() => {
+        let active = true;
         const stored = getStoredProducts();
-        if (stored.length === 0) return;
+        if (stored.length === 0) return undefined;
 
         Promise.all(
-            stored.map((p) =>
-                fetchCachedJson(`${BASEURL}/api/product/${p.id}/`, {
-                    cacheKey: productDetailsCacheKey(p.id),
-                    errorMessage: "Failed to fetch product",
-                }),
-            ),
-        )
-            .then((fresh) => {
-                fresh.forEach(rememberProductDetails);
-                fresh.forEach((product) => preloadImage(product.image_url));
-                setProducts(fresh);
-            })
-            .catch(() => {
-                setProducts(stored);
-            });
+            stored.map(async (product) => {
+                try {
+                    const freshProduct = await fetchCachedJson(
+                        `${BASEURL}/api/product/${product.id}/`,
+                        {
+                            cacheKey: productDetailsCacheKey(product.id),
+                            errorMessage: "Failed to fetch product",
+                        },
+                    );
+                    rememberProductDetails(freshProduct);
+                    return freshProduct;
+                } catch {
+                    return getCachedProduct(product.id) || product;
+                }
+            }),
+        ).then((freshProducts) => {
+            if (active) setProducts(freshProducts);
+        });
+
+        return () => {
+            active = false;
+        };
     }, [BASEURL]);
 
     const handleAddToCart = (productId) => {
@@ -114,10 +121,11 @@ function CompareProducts() {
                 </div>
 
                 <div className="grid gap-5 md:grid-cols-2">
-                    {products.map((product) => (
+                    {products.map((product, index) => (
                         <CompareCard
                             key={product.id}
                             product={product}
+                            prioritizeImage={index === 0}
                             onAddToCart={handleAddToCart}
                         />
                     ))}
@@ -127,7 +135,7 @@ function CompareProducts() {
     );
 }
 
-function CompareCard({ product, onAddToCart }) {
+function CompareCard({ product, onAddToCart, prioritizeImage }) {
     const isOnSale = product.active_discount > 0 && product.discounted_price;
 
     return (
@@ -138,6 +146,9 @@ function CompareCard({ product, onAddToCart }) {
                         src={product.image_url}
                         alt={product.name}
                         className="h-full w-full object-contain"
+                        loading="eager"
+                        decoding="async"
+                        fetchPriority={prioritizeImage ? "high" : "auto"}
                     />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center text-slate-300">

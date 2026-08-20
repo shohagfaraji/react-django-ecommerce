@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { FaHeadset, FaShieldAlt, FaTruck } from "react-icons/fa";
+import { preloadRoute } from "../utils/routePreload";
 
 function Footer() {
     return (
@@ -79,6 +80,8 @@ function Footer() {
 }
 
 function FooterColumn({ title, links }) {
+    const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
+
     return (
         <div>
             <p className="text-sm font-black uppercase tracking-wide text-white">
@@ -89,6 +92,9 @@ function FooterColumn({ title, links }) {
                     <Link
                         key={href}
                         to={href}
+                        onMouseEnter={() => preloadRoute(BASEURL, href)}
+                        onFocus={() => preloadRoute(BASEURL, href)}
+                        onTouchStart={() => preloadRoute(BASEURL, href)}
                         className="text-sm font-semibold text-slate-400 transition hover:text-emerald-400"
                     >
                         {label}

@@ -1,98 +1,16 @@
-import { useEffect, useState } from "react";
-import ProductCard from "../components/ProductCard.jsx";
 import { FaBolt } from "react-icons/fa";
-import {
-    fetchCachedJson,
-    getCachedJson,
-    rememberProducts,
-} from "../utils/apiCache";
-
-const CACHE_KEY = "products:sale";
+import CatalogProductsPage from "../components/CatalogProductsPage.jsx";
 
 function SaleProducts() {
-    const [products, setProducts] = useState(
-        () => getCachedJson(CACHE_KEY) || [],
-    );
-    const [loading, setLoading] = useState(() => !getCachedJson(CACHE_KEY));
-    const [error, setError] = useState(null);
-
-    const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
-
-    useEffect(() => {
-        const controller = new AbortController();
-        const cachedProducts = getCachedJson(CACHE_KEY);
-
-        if (cachedProducts) {
-            setProducts(cachedProducts);
-            rememberProducts(cachedProducts);
-            setLoading(false);
-        }
-
-        fetchCachedJson(`${BASEURL}/api/products/sale/`, {
-            cacheKey: CACHE_KEY,
-            errorMessage: "Failed to fetch sale products",
-            signal: controller.signal,
-        })
-            .then((data) => {
-                rememberProducts(data);
-                setProducts(data);
-                setLoading(false);
-            })
-            .catch((err) => {
-                if (err.name !== "AbortError") {
-                    setError(err.message);
-                    setLoading(false);
-                }
-            });
-
-        return () => controller.abort();
-    }, [BASEURL]);
-
-    if (error)
-        return <div className="pt-24 text-center text-red-500">{error}</div>;
-
     return (
-        <div className="bg-gray-100 min-h-screen pt-30 md:pt-20 pb-10">
-            <div className="px-2 sm:px-6">
-                <div className="flex items-center gap-3 mb-6">
-                    <FaBolt className="text-red-500 text-2xl" />
-                    <h1 className="text-3xl font-bold text-gray-800">Deals</h1>
-                    {!loading && products.length > 0 && (
-                        <span className="ml-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                            {products.length} deals
-                        </span>
-                    )}
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
-                    {loading ? (
-                        Array.from({ length: 10 }).map((_, i) => (
-                            <SkeletonCard key={i} />
-                        ))
-                    ) : products.length > 0 ? (
-                        products.map((product) => (
-                            <ProductCard key={product.id} product={product} />
-                        ))
-                    ) : (
-                        <p className="col-span-full text-center text-gray-500 py-20">
-                            No discounted products right now.
-                        </p>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function SkeletonCard() {
-    return (
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm animate-pulse">
-            <div className="bg-gray-200 w-full aspect-square" />
-            <div className="p-3 space-y-2">
-                <div className="bg-gray-200 h-4 rounded w-3/4" />
-                <div className="bg-gray-200 h-4 rounded w-1/2" />
-            </div>
-        </div>
+        <CatalogProductsPage
+            catalog="sale"
+            title="Deals"
+            icon={<FaBolt />}
+            iconClassName="text-[#b62324]"
+            emptyCopy="No discounted products right now."
+            countLabel="deals"
+        />
     );
 }
 

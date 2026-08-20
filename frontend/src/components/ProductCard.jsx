@@ -4,7 +4,7 @@ import { FaShoppingCart, FaStar } from "react-icons/fa";
 import StarRating from "./StarRating";
 import { preloadProductDetails } from "../utils/apiCache";
 
-function ProductCard({ product }) {
+function ProductCard({ product, prioritizeImage = false }) {
     const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
     const [imageFailed, setImageFailed] = useState(false);
     const discount = product.active_discount || 0;
@@ -45,8 +45,9 @@ function ProductCard({ product }) {
                             src={product.image_url}
                             alt={product.name}
                             className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
-                            loading="lazy"
+                            loading={prioritizeImage ? "eager" : "lazy"}
                             decoding="async"
+                            fetchPriority={prioritizeImage ? "high" : "auto"}
                             onError={() => setImageFailed(true)}
                         />
                     ) : (
