@@ -47,7 +47,7 @@ function Login() {
                 clearCart();
                 void fetchCart();
                 showAlert("Login successful");
-                nav("/");
+                nav(data.profile?.is_staff ? "/admin" : "/");
             } else {
                 setMsg(data.detail || "Invalid username or password");
             }
@@ -82,7 +82,7 @@ function Login() {
                 />
 
                 {msg && (
-                    <p className="rounded-md bg-rose-50 px-3 py-2 text-sm font-bold text-rose-600">
+                    <p className="rounded-md bg-[#b62324]/10 px-3 py-2 text-sm font-bold text-[#b62324]">
                         {msg}
                     </p>
                 )}

@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import admin_views
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
@@ -31,4 +32,16 @@ urlpatterns = [
     path('profile/password/check/', views.check_current_password),
     path('profile/delete/', views.delete_account),
     path('bootstrap-superuser/', views.bootstrap_superuser),
+
+    path('admin/dashboard/', admin_views.admin_dashboard),
+    path('admin/products/', admin_views.admin_products),
+    path('admin/products/<int:pk>/', admin_views.admin_product_detail),
+    path('admin/orders/', admin_views.admin_orders),
+    path('admin/orders/<int:pk>/status/', admin_views.admin_order_status),
+    path('admin/categories/', admin_views.admin_categories),
+    path('admin/categories/<int:pk>/', admin_views.admin_category_detail),
+    path('admin/reviews/', admin_views.admin_reviews),
+    path('admin/reviews/<int:pk>/', admin_views.admin_review_detail),
+    path('admin/banners/', admin_views.admin_banners),
+    path('admin/banners/<int:pk>/', admin_views.admin_banner_detail),
 ]

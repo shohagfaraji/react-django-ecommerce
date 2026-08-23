@@ -222,6 +222,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     profile_picture_thumbnail_url = serializers.SerializerMethodField()
     profile_picture_url = serializers.SerializerMethodField()
     order_count = serializers.IntegerField(read_only=True, default=0)
+    is_staff = serializers.BooleanField(source='user.is_staff', read_only=True)
 
     class Meta:
         model = UserProfile
@@ -236,6 +237,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'profile_picture_thumbnail_url',
             'profile_picture_url',
             'order_count',
+            'is_staff',
         ]
 
     def validate_username(self, value):
