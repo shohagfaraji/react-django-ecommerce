@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState } from "react";
 
 const AlertContext = createContext();
@@ -33,7 +32,7 @@ export const AlertProvider = ({ children }) => {
                             alert.type === "success"
                                 ? "border-green-500"
                                 : alert.type === "error"
-                                  ? "border-[#b62324]"
+                                  ? "border-red-500"
                                   : "border-blue-500"
                         }
                     `}
