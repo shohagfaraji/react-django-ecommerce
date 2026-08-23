@@ -6,6 +6,7 @@ import {
     FaSearch,
     FaShoppingCart,
     FaSignOutAlt,
+    FaUserShield,
 } from "react-icons/fa";
 import {
     clearTokens,
@@ -38,6 +39,9 @@ function Navbar({ onMenuToggle }) {
             cachedProfile?.profile_picture_url ||
             DEFAULT_AVATAR,
     );
+    const [isStaff, setIsStaff] = useState(
+        () => cachedProfile?.is_staff === true,
+    );
     const { cartItems, clearCart } = useCart();
     const navigate = useNavigate();
 
@@ -66,6 +70,7 @@ function Navbar({ onMenuToggle }) {
 
             if (!getAccessToken()) {
                 setProfilePicture(DEFAULT_AVATAR);
+                setIsStaff(false);
                 return;
             }
 
@@ -79,9 +84,13 @@ function Navbar({ onMenuToggle }) {
                         profile.profile_picture_url ||
                         DEFAULT_AVATAR,
                 );
+                setIsStaff(profile.is_staff === true);
                 localStorage.setItem("username", profile.username || "");
             } catch {
-                if (active) setProfilePicture(DEFAULT_AVATAR);
+                if (active) {
+                    setProfilePicture(DEFAULT_AVATAR);
+                    setIsStaff(false);
+                }
             }
         };
 
@@ -136,6 +145,7 @@ function Navbar({ onMenuToggle }) {
         clearCart();
         setUsername("");
         setProfilePicture(DEFAULT_AVATAR);
+        setIsStaff(false);
         window.dispatchEvent(new Event("winkelo:auth-changed"));
         navigate("/login");
     };
@@ -218,6 +228,22 @@ function Navbar({ onMenuToggle }) {
                         </Link>
                     ) : (
                         <div className="flex min-w-0 items-center gap-1">
+                            {isStaff && (
+                                <Link
+                                    to="/admin"
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700"
+                                    aria-label="Open admin dashboard"
+                                    title="Admin dashboard"
+                                    onMouseEnter={() =>
+                                        void import("../pages/AdminDashboard")
+                                    }
+                                    onFocus={() =>
+                                        void import("../pages/AdminDashboard")
+                                    }
+                                >
+                                    <FaUserShield className="text-xl" />
+                                </Link>
+                            )}
                             <Link
                                 to="/profile"
                                 className="group flex min-w-0 items-center gap-2 rounded-full p-1 transition hover:bg-slate-100 md:pr-3"
@@ -243,7 +269,7 @@ function Navbar({ onMenuToggle }) {
                             </Link>
                             <button
                                 onClick={handleLogout}
-                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-[#b62324]/10 hover:text-[#b62324]"
                                 type="button"
                                 aria-label="Log out"
                                 title="Log out"

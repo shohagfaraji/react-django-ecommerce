@@ -4,12 +4,22 @@ from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Cart, CartItem, Category, Order, OrderItem, Product, Review, UserProfile
+from .models import (
+    Cart,
+    CartItem,
+    Category,
+    HeroBanner,
+    Order,
+    OrderItem,
+    Product,
+    Review,
+    UserProfile,
+)
 from .serializers import ProductSerializer
 
 
@@ -221,6 +231,198 @@ class CatalogLoadingTests(APITestCase):
                 with self.assertNumQueries(0):
                     cached_response = self.client.get(url)
                 self.assertEqual(cached_response.data, response.data)
+
+
+class AdminDashboardTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.staff = User.objects.create_user(
+            username="dashboardadmin",
+            password="pass123",
+            is_staff=True,
+        )
+        self.customer = User.objects.create_user(
+            username="dashboardcustomer",
+            password="pass123",
+        )
+        self.category = make_category(
+            name="Dashboard Category",
+            slug="dashboard-category",
+        )
+        self.product = make_product(
+            self.category,
+            name="Dashboard Product",
+            price="75.00",
+        )
+        self.order = Order.objects.create(
+            user=self.customer,
+            recipient_name="Dashboard Customer",
+            total_amount="75.00",
+            status=Order.STATUS_PLACED,
+        )
+        self.item = OrderItem.objects.create(
+            order=self.order,
+            product=self.product,
+            quantity=1,
+            price="75.00",
+        )
+
+    def test_customer_cannot_access_dashboard_api(self):
+        self.client.force_authenticate(user=self.customer)
+
+        response = self.client.get("/api/admin/dashboard/")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_login_profile_includes_staff_role(self):
+        response = self.client.post(
+            "/api/token/",
+            {"username": "dashboardadmin", "password": "pass123"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["profile"]["is_staff"])
+
+    def test_staff_dashboard_returns_store_metrics(self):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.get("/api/admin/dashboard/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["staff"]["username"], "dashboardadmin")
+        self.assertEqual(response.data["metrics"]["products"], 1)
+        self.assertEqual(response.data["metrics"]["customers"], 1)
+        self.assertEqual(response.data["metrics"]["orders"], 1)
+        self.assertEqual(len(response.data["recent_orders"]), 1)
+
+    def test_staff_can_create_and_update_product(self):
+        self.client.force_authenticate(user=self.staff)
+        create_response = self.client.post(
+            "/api/admin/products/",
+            {
+                "name": "Managed Product",
+                "description": "Created from dashboard",
+                "price": "99.50",
+                "category": self.category.id,
+                "discount_percentage": 15,
+                "is_featured": True,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+        product_id = create_response.data["id"]
+        update_response = self.client.patch(
+            f"/api/admin/products/{product_id}/",
+            {"price": "89.00", "is_hot": True},
+            format="multipart",
+        )
+
+        self.assertEqual(update_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(update_response.data["price"], "89.00")
+        self.assertTrue(update_response.data["is_hot"])
+
+    def test_product_in_order_cannot_be_deleted(self):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.delete(
+            f"/api/admin/products/{self.product.id}/",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(Product.objects.filter(pk=self.product.id).exists())
+
+    def test_staff_can_update_order_status(self):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.patch(
+            f"/api/admin/orders/{self.order.id}/status/",
+            {"status": Order.STATUS_PROCESSING},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.STATUS_PROCESSING)
+
+    def test_staff_can_list_orders(self):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.get("/api/admin/orders/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["item_count"], 1)
+
+    def test_staff_can_moderate_review(self):
+        review = Review.objects.create(
+            order_item=self.item,
+            product=self.product,
+            user=self.customer,
+            rating=2,
+            comment="Needs moderation",
+        )
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.delete(f"/api/admin/reviews/{review.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Review.objects.filter(pk=review.id).exists())
+
+    def test_staff_can_manage_categories(self):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.post(
+            "/api/admin/categories/",
+            {
+                "name": "Managed Category",
+                "slug": "managed-category",
+                "section": "other",
+                "is_active": True,
+                "sort_order": 4,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["slug"], "managed-category")
+
+    @override_settings(USE_CLOUDINARY_MEDIA=True)
+    @patch(
+        "store.admin_serializers.cloudinary.uploader.upload",
+        return_value={"public_id": "hero_banners/dashboard-banner"},
+    )
+    def test_staff_can_create_banner(self, upload_image):
+        self.client.force_authenticate(user=self.staff)
+        image = SimpleUploadedFile(
+            "banner.gif",
+            (
+                b"GIF87a\x01\x00\x01\x00\x80\x01\x00\x00\x00\x00"
+                b"\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00"
+                b"\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+            ),
+            content_type="image/gif",
+        )
+
+        response = self.client.post(
+            "/api/admin/banners/",
+            {
+                "title": "Dashboard Banner",
+                "subtitle": "Managed from the dashboard",
+                "image_upload": image,
+                "category": self.category.id,
+                "button_text": "Shop now",
+                "is_active": True,
+                "show_on_home": True,
+                "sort_order": 1,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(HeroBanner.objects.filter(pk=response.data["id"]).exists())
+        upload_image.assert_called_once()
 
 
 class AuthTests(APITestCase):

@@ -187,3 +187,28 @@ button:disabled,
 [aria-disabled="true"] {
     cursor: not-allowed;
 }
+
+.form-control {
+    height: 2.75rem;
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.75rem;
+    background: #ffffff;
+    padding: 0 0.875rem;
+    color: #0f172a;
+    font-size: 0.875rem;
+    outline: none;
+    transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.form-control:focus {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+textarea.form-control {
+    height: auto;
+    min-height: 5.5rem;
+}
