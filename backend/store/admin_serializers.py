@@ -102,11 +102,18 @@ class AdminProductSerializer(
             'is_weekly_top',
             'average_rating',
             'review_count',
+            'track_inventory',
+            'stock_quantity',
+            'low_stock_threshold',
+            'is_in_stock',
+            'is_low_stock',
             'created_at',
         ]
         read_only_fields = [
             'average_rating',
             'review_count',
+            'is_in_stock',
+            'is_low_stock',
             'created_at',
         ]
 
@@ -272,4 +279,20 @@ class AdminReviewSerializer(serializers.ModelSerializer):
             'comment',
             'created_at',
             'images',
+        ]
+
+
+class AdminReviewSummarySerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    product_name = serializers.CharField(source='product.name', read_only=True)
+
+    class Meta:
+        model = Review
+        fields = [
+            'id',
+            'product_name',
+            'username',
+            'rating',
+            'comment',
+            'created_at',
         ]

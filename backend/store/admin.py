@@ -49,10 +49,10 @@ class ImageUploadAdminMixin:
 @admin.register(Product)
 class ProductAdmin(ImageUploadAdminMixin, StoreCacheInvalidationAdminMixin, admin.ModelAdmin):
     image_folder = 'products'
-    list_display = ('name', 'category', 'price', 'discount_percentage', 'is_hot', 'is_featured', 'is_weekly_top', 'created_at')
-    list_filter = ('category__section', 'is_hot', 'is_featured', 'is_weekly_top')
+    list_display = ('name', 'category', 'price', 'stock_quantity', 'track_inventory', 'discount_percentage', 'is_hot', 'is_featured', 'is_weekly_top', 'created_at')
+    list_filter = ('category__section', 'track_inventory', 'is_hot', 'is_featured', 'is_weekly_top')
     search_fields = ('name', 'category__name')
-    list_editable = ('discount_percentage', 'is_hot', 'is_featured', 'is_weekly_top')
+    list_editable = ('stock_quantity', 'track_inventory', 'discount_percentage', 'is_hot', 'is_featured', 'is_weekly_top')
     autocomplete_fields = ('category',)
     list_select_related = ('category',)
     ordering = ('-created_at',)
@@ -107,7 +107,7 @@ class HeroBannerAdmin(ImageUploadAdminMixin, StoreCacheInvalidationAdminMixin, a
 class OrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'status', 'total_amount', 'created_at')
     list_filter = ('status', 'payment_method')
-    list_editable = ('status',)
+    readonly_fields = ('status',)
     search_fields = ('id', 'user__username', 'user__email')
     list_select_related = ('user',)
     ordering = ('-created_at',)
@@ -117,7 +117,8 @@ class OrderAdmin(admin.ModelAdmin):
 
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
-    list_display = ('order', 'product', 'quantity', 'price')
+    list_display = ('order', 'product', 'quantity', 'price', 'stock_deducted')
+    readonly_fields = ('stock_deducted',)
     autocomplete_fields = ('order', 'product')
     list_select_related = ('order', 'product')
     show_full_result_count = False

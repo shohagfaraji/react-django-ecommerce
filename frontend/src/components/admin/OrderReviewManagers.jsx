@@ -4,6 +4,7 @@ import { useAlert } from "../../context/AlertContext";
 import { adminRequest } from "../../utils/admin";
 import useAdminCollection from "./useAdminCollection";
 import { formatDate, money, ORDER_STATUSES } from "./adminConfig";
+import { invalidateStoreProductCaches } from "../../utils/apiCache";
 import {
     CollectionState,
     ConfirmDialog,
@@ -54,6 +55,9 @@ function OrdersManager({ active, onChanged }) {
                     item.id === order.id ? { ...item, ...update } : item,
                 ),
             );
+            if (nextStatus === "cancelled") {
+                invalidateStoreProductCaches();
+            }
             showAlert(`Order #${order.id} status updated`);
             onChanged();
         } catch (error) {

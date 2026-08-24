@@ -5,7 +5,7 @@ import {
     FaDollarSign,
     FaUsers,
 } from "react-icons/fa";
-import { adminRequest } from "../../utils/admin";
+import { fetchAdminData, getCachedAdminData } from "../../utils/admin";
 import { formatDate, money } from "./adminConfig";
 import {
     DashboardSkeleton,
@@ -20,7 +20,9 @@ import {
 
 function Overview({ active, refreshVersion, onNavigate }) {
     const baseUrl = import.meta.env.VITE_DJANGO_BASE_URL;
-    const [data, setData] = useState(null);
+    const [data, setData] = useState(
+        () => getCachedAdminData("dashboard/") || null,
+    );
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -28,7 +30,7 @@ function Overview({ active, refreshVersion, onNavigate }) {
         setLoading(true);
         setError("");
         try {
-            setData(await adminRequest(baseUrl, "dashboard/"));
+            setData(await fetchAdminData(baseUrl, "dashboard/"));
         } catch (requestError) {
             setError(requestError.message);
         } finally {
@@ -63,7 +65,10 @@ function Overview({ active, refreshVersion, onNavigate }) {
         {
             label: "Products",
             value: metrics.products,
-            note: `${metrics.categories} categories`,
+            note:
+                metrics.out_of_stock_products || metrics.low_stock_products
+                    ? `${metrics.out_of_stock_products} out · ${metrics.low_stock_products} low`
+                    : `${metrics.categories} categories · stock healthy`,
             icon: FaBoxOpen,
             tone: "bg-violet-50 text-violet-700",
         },

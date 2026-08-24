@@ -133,6 +133,8 @@ class ProductSerializer(serializers.ModelSerializer):
     discounted_price = serializers.SerializerMethodField()
     average_rating = serializers.FloatField(read_only=True)
     review_count = serializers.IntegerField(read_only=True)
+    is_in_stock = serializers.ReadOnlyField()
+    is_low_stock = serializers.ReadOnlyField()
 
     class Meta:
         model = Product
@@ -168,6 +170,11 @@ class ProductListSerializer(ProductSerializer):
             'discounted_price',
             'average_rating',
             'review_count',
+            'track_inventory',
+            'stock_quantity',
+            'low_stock_threshold',
+            'is_in_stock',
+            'is_low_stock',
         ]
 
     def get_image_url(self, obj):
@@ -180,6 +187,18 @@ class CartItemSerializer(serializers.ModelSerializer):
     product_image = serializers.SerializerMethodField()
     product_active_discount = serializers.SerializerMethodField()
     product_discounted_price = serializers.SerializerMethodField()
+    product_track_inventory = serializers.BooleanField(
+        source='product.track_inventory',
+        read_only=True,
+    )
+    product_stock_quantity = serializers.IntegerField(
+        source='product.stock_quantity',
+        read_only=True,
+    )
+    product_is_in_stock = serializers.BooleanField(
+        source='product.is_in_stock',
+        read_only=True,
+    )
 
     class Meta:
         model = CartItem

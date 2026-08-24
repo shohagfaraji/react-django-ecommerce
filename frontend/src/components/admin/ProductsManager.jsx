@@ -3,6 +3,7 @@ import { useAlert } from "../../context/AlertContext";
 import { adminRequest } from "../../utils/admin";
 import useAdminCollection from "./useAdminCollection";
 import { money } from "./adminConfig";
+import { invalidateStoreProductCaches } from "../../utils/apiCache";
 import {
     CheckField,
     CollectionState,
@@ -66,6 +67,7 @@ function ProductsManager({ active, onChanged }) {
                 : [saved, ...current],
         );
         setFormOpen(false);
+        invalidateStoreProductCaches();
         showAlert(editing ? "Product updated" : "Product created");
         onChanged();
     };
@@ -78,6 +80,7 @@ function ProductsManager({ active, onChanged }) {
             products.setData((current) =>
                 current.filter((item) => item.id !== deleting.id),
             );
+            invalidateStoreProductCaches();
             setDeleting(null);
             showAlert("Product deleted");
             onChanged();
@@ -90,7 +93,7 @@ function ProductsManager({ active, onChanged }) {
     return (
         <ManagementPanel
             title="Products"
-            copy="Create products, update pricing and choose where products are featured."
+            copy="Manage product information, inventory, pricing and storefront placement."
             action="Add product"
             onAction={openCreate}
         >
@@ -107,12 +110,13 @@ function ProductsManager({ active, onChanged }) {
                 emptyMessage="No products match your search."
             >
                 <div className="hidden overflow-x-auto md:block">
-                    <table className="w-full min-w-[820px] text-left">
+                    <table className="w-full min-w-[940px] text-left">
                         <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                             <tr>
                                 <Th>Product</Th>
                                 <Th>Category</Th>
                                 <Th>Price</Th>
+                                <Th>Inventory</Th>
                                 <Th>Rating</Th>
                                 <Th>Placement</Th>
                                 <Th align="right">Actions</Th>
@@ -144,6 +148,9 @@ function ProductsManager({ active, onChanged }) {
                                                 {product.discount_percentage}% off
                                             </p>
                                         )}
+                                    </Td>
+                                    <Td>
+                                        <InventoryBadge product={product} />
                                     </Td>
                                     <Td>
                                         <Stars
@@ -188,6 +195,9 @@ function ProductsManager({ active, onChanged }) {
                                     <p className="mt-2 text-lg font-black text-emerald-700">
                                         {money(product.price)}
                                     </p>
+                                    <div className="mt-2">
+                                        <InventoryBadge product={product} />
+                                    </div>
                                 </div>
                             </div>
                             <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
@@ -231,6 +241,9 @@ function ProductForm({ product, categories, onClose, onSave }) {
         price: product?.price || "",
         category: product?.category || categories[0]?.id || "",
         discount_percentage: product?.discount_percentage || 0,
+        track_inventory: product?.track_inventory ?? true,
+        stock_quantity: product?.stock_quantity ?? 0,
+        low_stock_threshold: product?.low_stock_threshold ?? 5,
         is_hot: product?.is_hot || false,
         is_featured: product?.is_featured || false,
         is_weekly_top: product?.is_weekly_top || false,
@@ -348,6 +361,49 @@ function ProductForm({ product, categories, onClose, onSave }) {
                 </Field>
                 <div>
                     <p className="mb-3 text-sm font-black text-slate-700">
+                        Inventory
+                    </p>
+                    <div className="space-y-3">
+                        <CheckField
+                            name="track_inventory"
+                            checked={values.track_inventory}
+                            onChange={updateValue}
+                            label="Track available stock"
+                        />
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Field label="Available quantity" required>
+                                <input
+                                    name="stock_quantity"
+                                    type="number"
+                                    min="0"
+                                    value={values.stock_quantity}
+                                    onChange={updateValue}
+                                    required
+                                    disabled={!values.track_inventory}
+                                    className="form-control disabled:bg-slate-100 disabled:text-slate-400"
+                                />
+                            </Field>
+                            <Field label="Low-stock warning at" required>
+                                <input
+                                    name="low_stock_threshold"
+                                    type="number"
+                                    min="0"
+                                    value={values.low_stock_threshold}
+                                    onChange={updateValue}
+                                    required
+                                    disabled={!values.track_inventory}
+                                    className="form-control disabled:bg-slate-100 disabled:text-slate-400"
+                                />
+                            </Field>
+                        </div>
+                        <p className="text-xs font-semibold leading-5 text-slate-500">
+                            When tracking is disabled, customers can order this
+                            product without a stock limit.
+                        </p>
+                    </div>
+                </div>
+                <div>
+                    <p className="mb-3 text-sm font-black text-slate-700">
                         Store placement
                     </p>
                     <div className="grid gap-3 sm:grid-cols-3">
@@ -379,6 +435,34 @@ function ProductForm({ product, categories, onClose, onSave }) {
                 />
             </form>
         </Modal>
+    );
+}
+
+function InventoryBadge({ product }) {
+    if (!product.track_inventory) {
+        return (
+            <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">
+                Not tracked
+            </span>
+        );
+    }
+    if (!product.is_in_stock) {
+        return (
+            <span className="inline-flex rounded-full bg-[#b62324]/10 px-2.5 py-1 text-xs font-black text-[#b62324]">
+                Out of stock
+            </span>
+        );
+    }
+    return (
+        <span
+            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${
+                product.is_low_stock
+                    ? "bg-amber-50 text-amber-700"
+                    : "bg-emerald-50 text-emerald-700"
+            }`}
+        >
+            {product.stock_quantity} in stock
+        </span>
     );
 }
 

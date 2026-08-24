@@ -21,7 +21,6 @@ from .serializers import (
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import (
-    F,
     IntegerField,
     Prefetch,
     Q,
@@ -43,7 +42,12 @@ from urllib.parse import urlencode
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
-from .cache_utils import store_cache_key
+from .cache_utils import bump_store_cache_version, store_cache_key
+from .inventory import (
+    InventoryError,
+    reserve_cart_inventory,
+    validate_product_quantity,
+)
 
 
 def cached_api_data(key, factory, timeout=300):
@@ -101,6 +105,9 @@ PRODUCT_LIST_FIELDS = (
     'discount_percentage',
     'average_rating',
     'review_count',
+    'track_inventory',
+    'stock_quantity',
+    'low_stock_threshold',
     'category__id',
     'category__name',
     'category__slug',
@@ -314,18 +321,28 @@ def add_to_cart(request):
         return Response({'error': 'product_id is required'}, status=400)
 
     try:
-        product = Product.objects.get(id=product_id)
+        with transaction.atomic():
+            product = Product.objects.get(id=product_id)
+            cart, _ = Cart.objects.get_or_create(user=request.user)
+            item = CartItem.objects.select_for_update().filter(
+                cart=cart,
+                product=product,
+            ).first()
+            next_quantity = item.quantity + 1 if item else 1
+            validate_product_quantity(product, next_quantity)
+            if item:
+                item.quantity = next_quantity
+                item.save(update_fields=['quantity'])
+            else:
+                item = CartItem.objects.create(
+                    cart=cart,
+                    product=product,
+                    quantity=1,
+                )
     except (Product.DoesNotExist, ValueError, TypeError):
         return Response({'error': 'Product not found'}, status=404)
-
-    cart, created = Cart.objects.get_or_create(user=request.user)
-    item, created = CartItem.objects.get_or_create(cart=cart, product=product)
-
-    if not created:
-        CartItem.objects.filter(pk=item.pk).update(
-            quantity=F('quantity') + 1,
-        )
-        item.refresh_from_db(fields=['quantity'])
+    except InventoryError as exc:
+        return Response({'error': str(exc)}, status=400)
 
     count = CartItem.objects.filter(cart=cart).aggregate(
         total=Coalesce(
@@ -366,6 +383,11 @@ def update_cart_quantity(request):
         item.delete()
         return Response({"message": "Item removed"})
 
+    try:
+        validate_product_quantity(item.product, quantity)
+    except InventoryError as exc:
+        return Response({'error': str(exc)}, status=400)
+
     item.quantity = quantity
     item.save(update_fields=['quantity'])
     return Response(CartItemSerializer(item, context={'request': request}).data)
@@ -400,53 +422,62 @@ def create_order(request):
     if payment_method not in {'COD', 'CreditCard'}:
         return Response({"error": "Invalid payment method"}, status=400)
 
-    with transaction.atomic():
-        cart = Cart.objects.select_for_update().filter(
-            user=request.user,
-        ).first()
-        if not cart:
-            return Response({"error": "Cart not found"}, status=404)
+    try:
+        with transaction.atomic():
+            cart = Cart.objects.select_for_update().filter(
+                user=request.user,
+            ).first()
+            if not cart:
+                return Response({"error": "Cart not found"}, status=404)
 
-        cart_items = list(
-            CartItem.objects.filter(cart=cart).select_related('product')
-        )
-        if not cart_items:
-            return Response({"error": "Cart is empty"}, status=400)
+            cart_items = list(CartItem.objects.filter(cart=cart))
+            if not cart_items:
+                return Response({"error": "Cart is empty"}, status=400)
 
-        priced_items = []
-        total = Decimal('0.00')
-        for item in cart_items:
-            unit_price = item.product.price
-            if item.product.discount_percentage > 0:
-                unit_price = (
-                    unit_price
-                    * (Decimal('1') - Decimal(item.product.discount_percentage) / Decimal('100'))
-                ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            total += unit_price * item.quantity
-            priced_items.append((item, unit_price))
+            stock_deductions = reserve_cart_inventory(cart_items)
+            priced_items = []
+            total = Decimal('0.00')
+            for item in cart_items:
+                unit_price = item.product.price
+                if item.product.discount_percentage > 0:
+                    unit_price = (
+                        unit_price
+                        * (
+                            Decimal('1')
+                            - Decimal(item.product.discount_percentage)
+                            / Decimal('100')
+                        )
+                    ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                total += unit_price * item.quantity
+                priced_items.append((item, unit_price))
 
-        order = Order.objects.create(
-            user=request.user,
-            total_amount=total,
-            recipient_name=recipient_name,
-            phone=phone,
-            delivery_address=address,
-            payment_method=payment_method,
-        )
-
-        OrderItem.objects.bulk_create([
-            OrderItem(
-                order=order,
-                product=item.product,
-                quantity=item.quantity,
-                price=unit_price,
+            order = Order.objects.create(
+                user=request.user,
+                total_amount=total,
+                recipient_name=recipient_name,
+                phone=phone,
+                delivery_address=address,
+                payment_method=payment_method,
             )
-            for item, unit_price in priced_items
-        ])
 
-        CartItem.objects.filter(
-            pk__in=[item.pk for item in cart_items],
-        ).delete()
+            OrderItem.objects.bulk_create([
+                OrderItem(
+                    order=order,
+                    product=item.product,
+                    quantity=item.quantity,
+                    price=unit_price,
+                    stock_deducted=stock_deductions[item.pk],
+                )
+                for item, unit_price in priced_items
+            ])
+
+            CartItem.objects.filter(
+                pk__in=[item.pk for item in cart_items],
+            ).delete()
+            if any(stock_deductions.values()):
+                transaction.on_commit(bump_store_cache_version)
+    except InventoryError as exc:
+        return Response({'error': str(exc)}, status=400)
 
     return Response({
         "message": "Order placed successfully",

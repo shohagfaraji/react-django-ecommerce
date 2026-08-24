@@ -1,4 +1,10 @@
-import { authFetch } from "./auth";
+import { authFetch, getAccessToken } from "./auth";
+import { getCachedJson, setCachedJson } from "./apiCache";
+
+const ADMIN_CACHE_PREFIX = "admin:";
+const pendingAdminRequests = new Map();
+
+const adminCacheKey = (path) => `${ADMIN_CACHE_PREFIX}${path}`;
 
 const firstError = (value) => {
     if (typeof value === "string") return value;
@@ -31,3 +37,28 @@ export const adminRequest = async (baseUrl, path, options = {}) => {
     return data;
 };
 
+export const getCachedAdminData = (path) =>
+    getCachedJson(adminCacheKey(path));
+
+export const cacheAdminData = (path, data) =>
+    setCachedJson(adminCacheKey(path), data);
+
+export const fetchAdminData = (baseUrl, path) => {
+    const accessToken = getAccessToken();
+    const requestKey = `${accessToken}:${path}`;
+    if (pendingAdminRequests.has(requestKey)) {
+        return pendingAdminRequests.get(requestKey);
+    }
+
+    const request = adminRequest(baseUrl, path)
+        .then((data) => {
+            if (getAccessToken() === accessToken) {
+                cacheAdminData(path, data);
+            }
+            return data;
+        })
+        .finally(() => pendingAdminRequests.delete(requestKey));
+
+    pendingAdminRequests.set(requestKey, request);
+    return request;
+};

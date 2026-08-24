@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import {
     FaBars,
@@ -13,24 +13,69 @@ import {
     FaTimes,
 } from "react-icons/fa";
 import AdminOverview from "../components/admin/AdminOverview";
-import ProductsManager from "../components/admin/ProductsManager";
-import {
-    OrdersManager,
-    ReviewsManager,
-} from "../components/admin/OrderReviewManagers";
-import {
-    BannersManager,
-    CategoriesManager,
-} from "../components/admin/CatalogManagers";
 import { clearTokens } from "../utils/auth";
+
+const loadProductsManager = () =>
+    import("../components/admin/ProductsManager");
+const loadOrderReviewManagers = () =>
+    import("../components/admin/OrderReviewManagers");
+const loadCatalogManagers = () =>
+    import("../components/admin/CatalogManagers");
+
+const ProductsManager = lazy(loadProductsManager);
+const OrdersManager = lazy(() =>
+    loadOrderReviewManagers().then((module) => ({
+        default: module.OrdersManager,
+    })),
+);
+const ReviewsManager = lazy(() =>
+    loadOrderReviewManagers().then((module) => ({
+        default: module.ReviewsManager,
+    })),
+);
+const CategoriesManager = lazy(() =>
+    loadCatalogManagers().then((module) => ({
+        default: module.CategoriesManager,
+    })),
+);
+const BannersManager = lazy(() =>
+    loadCatalogManagers().then((module) => ({
+        default: module.BannersManager,
+    })),
+);
 
 const NAV_ITEMS = [
     { id: "overview", label: "Overview", icon: FaChartLine },
-    { id: "products", label: "Products", icon: FaBoxOpen },
-    { id: "orders", label: "Orders", icon: FaClipboardList },
-    { id: "reviews", label: "Reviews", icon: FaStar },
-    { id: "categories", label: "Categories", icon: FaLayerGroup },
-    { id: "banners", label: "Hero banners", icon: FaImages },
+    {
+        id: "products",
+        label: "Products",
+        icon: FaBoxOpen,
+        preload: loadProductsManager,
+    },
+    {
+        id: "orders",
+        label: "Orders",
+        icon: FaClipboardList,
+        preload: loadOrderReviewManagers,
+    },
+    {
+        id: "reviews",
+        label: "Reviews",
+        icon: FaStar,
+        preload: loadOrderReviewManagers,
+    },
+    {
+        id: "categories",
+        label: "Categories",
+        icon: FaLayerGroup,
+        preload: loadCatalogManagers,
+    },
+    {
+        id: "banners",
+        label: "Hero banners",
+        icon: FaImages,
+        preload: loadCatalogManagers,
+    },
 ];
 
 function AdminDashboard() {
@@ -38,6 +83,9 @@ function AdminDashboard() {
     const [activeSection, setActiveSection] = useState("overview");
     const [menuOpen, setMenuOpen] = useState(false);
     const [overviewVersion, setOverviewVersion] = useState(0);
+    const [visitedSections, setVisitedSections] = useState(
+        () => new Set(["overview"]),
+    );
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -49,6 +97,12 @@ function AdminDashboard() {
     }, []);
 
     const openSection = (section) => {
+        setVisitedSections((current) => {
+            if (current.has(section)) return current;
+            const next = new Set(current);
+            next.add(section);
+            return next;
+        });
         setActiveSection(section);
         setMenuOpen(false);
     };
@@ -116,6 +170,8 @@ function AdminDashboard() {
                                 type="button"
                                 key={item.id}
                                 onClick={() => openSection(item.id)}
+                                onMouseEnter={() => item.preload?.()}
+                                onFocus={() => item.preload?.()}
                                 className={`flex h-12 w-full items-center gap-3 rounded-xl px-4 text-sm font-extrabold transition ${
                                     selected
                                         ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/20"
@@ -186,41 +242,99 @@ function AdminDashboard() {
                             onNavigate={openSection}
                         />
                     </div>
-                    <div className={activeSection === "products" ? "" : "hidden"}>
-                        <ProductsManager
-                            active={activeSection === "products"}
-                            onChanged={() => setOverviewVersion((value) => value + 1)}
-                        />
-                    </div>
-                    <div className={activeSection === "orders" ? "" : "hidden"}>
-                        <OrdersManager
-                            active={activeSection === "orders"}
-                            onChanged={() => setOverviewVersion((value) => value + 1)}
-                        />
-                    </div>
-                    <div className={activeSection === "reviews" ? "" : "hidden"}>
-                        <ReviewsManager
-                            active={activeSection === "reviews"}
-                            onChanged={() => setOverviewVersion((value) => value + 1)}
-                        />
-                    </div>
-                    <div className={activeSection === "categories" ? "" : "hidden"}>
-                        <CategoriesManager
-                            active={activeSection === "categories"}
-                            onChanged={() => setOverviewVersion((value) => value + 1)}
-                        />
-                    </div>
-                    <div className={activeSection === "banners" ? "" : "hidden"}>
-                        <BannersManager
-                            active={activeSection === "banners"}
-                            onChanged={() => setOverviewVersion((value) => value + 1)}
-                        />
-                    </div>
+                    {visitedSections.has("products") && (
+                        <div
+                            className={
+                                activeSection === "products" ? "" : "hidden"
+                            }
+                        >
+                            <Suspense fallback={<AdminSectionLoading />}>
+                                <ProductsManager
+                                    active={activeSection === "products"}
+                                    onChanged={() =>
+                                        setOverviewVersion((value) => value + 1)
+                                    }
+                                />
+                            </Suspense>
+                        </div>
+                    )}
+                    {visitedSections.has("orders") && (
+                        <div
+                            className={
+                                activeSection === "orders" ? "" : "hidden"
+                            }
+                        >
+                            <Suspense fallback={<AdminSectionLoading />}>
+                                <OrdersManager
+                                    active={activeSection === "orders"}
+                                    onChanged={() =>
+                                        setOverviewVersion((value) => value + 1)
+                                    }
+                                />
+                            </Suspense>
+                        </div>
+                    )}
+                    {visitedSections.has("reviews") && (
+                        <div
+                            className={
+                                activeSection === "reviews" ? "" : "hidden"
+                            }
+                        >
+                            <Suspense fallback={<AdminSectionLoading />}>
+                                <ReviewsManager
+                                    active={activeSection === "reviews"}
+                                    onChanged={() =>
+                                        setOverviewVersion((value) => value + 1)
+                                    }
+                                />
+                            </Suspense>
+                        </div>
+                    )}
+                    {visitedSections.has("categories") && (
+                        <div
+                            className={
+                                activeSection === "categories" ? "" : "hidden"
+                            }
+                        >
+                            <Suspense fallback={<AdminSectionLoading />}>
+                                <CategoriesManager
+                                    active={activeSection === "categories"}
+                                    onChanged={() =>
+                                        setOverviewVersion((value) => value + 1)
+                                    }
+                                />
+                            </Suspense>
+                        </div>
+                    )}
+                    {visitedSections.has("banners") && (
+                        <div
+                            className={
+                                activeSection === "banners" ? "" : "hidden"
+                            }
+                        >
+                            <Suspense fallback={<AdminSectionLoading />}>
+                                <BannersManager
+                                    active={activeSection === "banners"}
+                                    onChanged={() =>
+                                        setOverviewVersion((value) => value + 1)
+                                    }
+                                />
+                            </Suspense>
+                        </div>
+                    )}
                 </main>
             </div>
         </div>
     );
 }
 
+function AdminSectionLoading() {
+    return (
+        <div className="animate-pulse space-y-4">
+            <div className="h-24 rounded-2xl bg-white" />
+            <div className="h-80 rounded-2xl bg-white" />
+        </div>
+    );
+}
 
 export default AdminDashboard;

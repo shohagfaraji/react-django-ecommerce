@@ -9,6 +9,7 @@ export const PROFILE_CACHE_KEY = "account:profile";
 export const ORDERS_CACHE_KEY = "account:orders";
 export const CART_CACHE_KEY = "account:cart";
 const ORDER_DETAILS_CACHE_PREFIX = "account:order:";
+const ADMIN_CACHE_PREFIX = "admin:";
 const ORDER_DETAILS_STALE_MS = 30 * 60 * 1000;
 
 let pendingProfileRequest = null;
@@ -23,6 +24,7 @@ const clearAccountCache = () => {
     clearCachedJson(ORDERS_CACHE_KEY);
     clearCachedJson(CART_CACHE_KEY);
     clearCachedJsonByPrefix(ORDER_DETAILS_CACHE_PREFIX);
+    clearCachedJsonByPrefix(ADMIN_CACHE_PREFIX);
     pendingOrderDetailRequests.clear();
     pendingProfileRequest = null;
     pendingOrdersRequest = null;

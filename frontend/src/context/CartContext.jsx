@@ -27,6 +27,15 @@ const calculateCartTotal = (items) =>
 const productIdFor = (item) => item.product?.id || item.product;
 const isTemporaryItem = (itemId) => String(itemId).startsWith("temp-");
 
+const responseError = async (response, fallback) => {
+    try {
+        const data = await response.json();
+        return data.error || data.detail || fallback;
+    } catch {
+        return fallback;
+    }
+};
+
 function getInitialCartItems() {
     if (!getAccessToken()) return [];
     const cached = getCachedJson(CART_CACHE_KEY);
@@ -101,7 +110,12 @@ export const CartProvider = ({ children }) => {
                         },
                     );
                     if (!response.ok) {
-                        throw new Error("Could not update this quantity.");
+                        throw new Error(
+                            await responseError(
+                                response,
+                                "Could not update this quantity.",
+                            ),
+                        );
                     }
                     const serverItem = await response.json();
                     const currentItem = cartItemsRef.current.find(
@@ -152,6 +166,17 @@ export const CartProvider = ({ children }) => {
             const existing = currentItems.find(
                 (item) => productIdFor(item) === productId,
             );
+            const nextQuantity = (existing?.quantity || 0) + 1;
+            if (
+                cachedProduct?.track_inventory &&
+                nextQuantity > cachedProduct.stock_quantity
+            ) {
+                throw new Error(
+                    cachedProduct.stock_quantity > 0
+                        ? `Only ${cachedProduct.stock_quantity} units are available.`
+                        : `${cachedProduct.name} is currently out of stock.`,
+                );
+            }
             const nextItems = existing
                 ? currentItems.map((item) =>
                       item === existing
@@ -171,6 +196,12 @@ export const CartProvider = ({ children }) => {
                               cachedProduct?.active_discount || 0,
                           product_discounted_price:
                               cachedProduct?.discounted_price || null,
+                          product_track_inventory:
+                              cachedProduct?.track_inventory || false,
+                          product_stock_quantity:
+                              cachedProduct?.stock_quantity ?? 0,
+                          product_is_in_stock:
+                              cachedProduct?.is_in_stock ?? true,
                       },
                   ];
 
@@ -183,7 +214,12 @@ export const CartProvider = ({ children }) => {
                     body: JSON.stringify({ product_id: productId }),
                 });
                 if (!response.ok) {
-                    throw new Error("Could not add this product.");
+                    throw new Error(
+                        await responseError(
+                            response,
+                            "Could not add this product.",
+                        ),
+                    );
                 }
                 const data = await response.json();
 
@@ -220,6 +256,7 @@ export const CartProvider = ({ children }) => {
             } catch (error) {
                 console.error("Error adding to cart:", error);
                 await fetchCart();
+                throw error;
             }
         },
         [BASEURL, applyCartItems, fetchCart, persistQuantity],
