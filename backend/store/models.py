@@ -68,6 +68,12 @@ class Product(models.Model):
         editable=False,
     )
     review_count = models.PositiveIntegerField(default=0, editable=False)
+    track_inventory = models.BooleanField(
+        default=True,
+        help_text="Prevent orders from exceeding the available stock.",
+    )
+    stock_quantity = models.PositiveIntegerField(default=0)
+    low_stock_threshold = models.PositiveIntegerField(default=5)
 
     class Meta:
         indexes = [
@@ -98,6 +104,17 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def is_in_stock(self):
+        return not self.track_inventory or self.stock_quantity > 0
+
+    @property
+    def is_low_stock(self):
+        return (
+            self.track_inventory
+            and 0 < self.stock_quantity <= self.low_stock_threshold
+        )
     
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete = models.CASCADE)
@@ -147,6 +164,7 @@ class OrderItem(models.Model):
     product = models.ForeignKey(Product, on_delete = models.CASCADE)
     quantity = models.PositiveIntegerField(default = 1)
     price = models.DecimalField(max_digits = 10, decimal_places = 2)
+    stock_deducted = models.PositiveIntegerField(default=0, editable=False)
 
     def __str__(self):
         return f"{self.product.name} x{self.quantity}"

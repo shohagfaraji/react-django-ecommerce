@@ -81,6 +81,13 @@ export function clearCachedJsonByPrefix(cacheKeyPrefix) {
     }
 }
 
+export function invalidateStoreProductCaches() {
+    clearCachedJson("homepage");
+    clearCachedJsonByPrefix("products:");
+    clearCachedJsonByPrefix("product:");
+    clearCachedJsonByPrefix("product-details:");
+}
+
 export async function fetchCachedJson(
     url,
     {

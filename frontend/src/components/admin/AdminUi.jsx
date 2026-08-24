@@ -68,7 +68,7 @@ function SearchBox({ value, onChange, placeholder, flush = false }) {
                     value={value}
                     onChange={(event) => onChange(event.target.value)}
                     placeholder={placeholder}
-                    className="form-control pl-11"
+                    className="form-control admin-search-input"
                 />
             </label>
         </div>
@@ -436,7 +436,7 @@ function StatusSelect({ order, saving, onChange, full = false }) {
             <select
                 value={order.status}
                 onChange={(event) => onChange(event.target.value)}
-                disabled={saving}
+                disabled={saving || order.status === "cancelled"}
                 className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 pr-8 text-xs font-black text-slate-700 outline-none focus:border-emerald-500 disabled:opacity-60"
                 aria-label={`Status for order ${order.id}`}
             >

@@ -28,6 +28,7 @@ def make_category(name="Test Electronics", slug="test-electronics"):
 
 
 def make_product(category, name="Test Product", price="100.00", **kwargs):
+    kwargs.setdefault("stock_quantity", 100)
     return Product.objects.create(category=category, name=name, price=price, **kwargs)
 
 
@@ -57,6 +58,19 @@ class ProductDiscountTests(TestCase):
         data = ProductSerializer(product).data
         self.assertEqual(data["active_discount"], 0)
         self.assertIsNone(data["discounted_price"])
+
+    def test_product_inventory_status_is_serialized(self):
+        self.product.stock_quantity = 3
+        self.product.low_stock_threshold = 5
+        self.product.save(
+            update_fields=["stock_quantity", "low_stock_threshold"],
+        )
+
+        data = ProductSerializer(self.product).data
+
+        self.assertTrue(data["is_in_stock"])
+        self.assertTrue(data["is_low_stock"])
+        self.assertEqual(data["stock_quantity"], 3)
 
 
 class HomepageTests(APITestCase):
@@ -287,13 +301,17 @@ class AdminDashboardTests(APITestCase):
     def test_staff_dashboard_returns_store_metrics(self):
         self.client.force_authenticate(user=self.staff)
 
-        response = self.client.get("/api/admin/dashboard/")
+        with self.assertNumQueries(7):
+            response = self.client.get("/api/admin/dashboard/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["staff"]["username"], "dashboardadmin")
         self.assertEqual(response.data["metrics"]["products"], 1)
         self.assertEqual(response.data["metrics"]["customers"], 1)
         self.assertEqual(response.data["metrics"]["orders"], 1)
+        self.assertEqual(response.data["metrics"]["pending_orders"], 1)
+        self.assertEqual(response.data["metrics"]["delivered_orders"], 0)
+        self.assertEqual(response.data["order_status_counts"]["placed"], 1)
         self.assertEqual(len(response.data["recent_orders"]), 1)
 
     def test_staff_can_create_and_update_product(self):
@@ -307,6 +325,9 @@ class AdminDashboardTests(APITestCase):
                 "category": self.category.id,
                 "discount_percentage": 15,
                 "is_featured": True,
+                "stock_quantity": 12,
+                "low_stock_threshold": 3,
+                "track_inventory": True,
             },
             format="multipart",
         )
@@ -322,6 +343,8 @@ class AdminDashboardTests(APITestCase):
         self.assertEqual(update_response.status_code, status.HTTP_200_OK)
         self.assertEqual(update_response.data["price"], "89.00")
         self.assertTrue(update_response.data["is_hot"])
+        self.assertEqual(update_response.data["stock_quantity"], 12)
+        self.assertTrue(update_response.data["is_in_stock"])
 
     def test_product_in_order_cannot_be_deleted(self):
         self.client.force_authenticate(user=self.staff)
@@ -345,6 +368,47 @@ class AdminDashboardTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.STATUS_PROCESSING)
+
+    def test_cancelling_order_restores_deducted_stock_once(self):
+        self.product.stock_quantity = 98
+        self.product.save(update_fields=["stock_quantity"])
+        self.item.quantity = 2
+        self.item.stock_deducted = 2
+        self.item.save(update_fields=["quantity", "stock_deducted"])
+        self.client.force_authenticate(user=self.staff)
+
+        first_response = self.client.patch(
+            f"/api/admin/orders/{self.order.id}/status/",
+            {"status": Order.STATUS_CANCELLED},
+            format="json",
+        )
+        second_response = self.client.patch(
+            f"/api/admin/orders/{self.order.id}/status/",
+            {"status": Order.STATUS_CANCELLED},
+            format="json",
+        )
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_200_OK)
+        self.product.refresh_from_db()
+        self.item.refresh_from_db()
+        self.assertEqual(self.product.stock_quantity, 100)
+        self.assertEqual(self.item.stock_deducted, 0)
+
+    def test_cancelled_order_cannot_be_reopened(self):
+        self.order.status = Order.STATUS_CANCELLED
+        self.order.save(update_fields=["status"])
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.patch(
+            f"/api/admin/orders/{self.order.id}/status/",
+            {"status": Order.STATUS_PROCESSING},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.STATUS_CANCELLED)
 
     def test_staff_can_list_orders(self):
         self.client.force_authenticate(user=self.staff)
@@ -512,6 +576,11 @@ class CartTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["items"][0]["quantity"], 2)
+        self.assertTrue(response.data["items"][0]["product_track_inventory"])
+        self.assertEqual(
+            response.data["items"][0]["product_stock_quantity"],
+            100,
+        )
 
     def test_add_to_cart_duplicate_increments_quantity(self):
         self.client.post("/api/cart/add/", {"product_id": self.product.id})
@@ -519,6 +588,36 @@ class CartTests(APITestCase):
         cart = Cart.objects.get(user=self.user)
         item = CartItem.objects.get(cart=cart, product=self.product)
         self.assertEqual(item.quantity, 2)
+
+    def test_out_of_stock_product_cannot_be_added(self):
+        self.product.stock_quantity = 0
+        self.product.save(update_fields=["stock_quantity"])
+
+        response = self.client.post(
+            "/api/cart/add/",
+            {"product_id": self.product.id},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("out of stock", response.data["error"])
+        self.assertFalse(CartItem.objects.exists())
+
+    def test_cart_quantity_cannot_exceed_available_stock(self):
+        self.product.stock_quantity = 1
+        self.product.save(update_fields=["stock_quantity"])
+        first_response = self.client.post(
+            "/api/cart/add/",
+            {"product_id": self.product.id},
+        )
+
+        second_response = self.client.post(
+            "/api/cart/add/",
+            {"product_id": self.product.id},
+        )
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(CartItem.objects.get().quantity, 1)
 
     def test_add_to_cart_nonexistent_product_returns_404(self):
         res = self.client.post("/api/cart/add/", {"product_id": 99999})
@@ -544,6 +643,20 @@ class CartTests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         item.refresh_from_db()
         self.assertEqual(item.quantity, 5)
+
+    def test_update_quantity_rejects_unavailable_stock(self):
+        item = self._add_and_get_item()
+        self.product.stock_quantity = 2
+        self.product.save(update_fields=["stock_quantity"])
+
+        response = self.client.post(
+            "/api/cart/update/",
+            {"item_id": item.id, "quantity": 3},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        item.refresh_from_db()
+        self.assertEqual(item.quantity, 1)
 
     def test_update_quantity_to_zero_removes_item(self):
         item = self._add_and_get_item()
@@ -580,6 +693,45 @@ class OrderTests(APITestCase):
         self.assertIn("order_id", res.data)
         self.assertEqual(res.data["item_count"], 2)
         self.assertEqual(res.data["total_amount"], "60.00")
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock_quantity, 98)
+        self.assertEqual(
+            OrderItem.objects.get(order_id=res.data["order_id"]).stock_deducted,
+            2,
+        )
+
+    def test_order_is_rejected_when_stock_changed_after_cart(self):
+        self.product.stock_quantity = 1
+        self.product.save(update_fields=["stock_quantity"])
+
+        response = self.client.post(
+            "/api/orders/create/",
+            {"name": "Test User", "address": "Road 1", "phone": "01700000000"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Only 1 unit", response.data["error"])
+        self.assertFalse(Order.objects.exists())
+        self.assertTrue(CartItem.objects.filter(cart__user=self.user).exists())
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock_quantity, 1)
+
+    def test_untracked_inventory_does_not_limit_or_deduct_stock(self):
+        self.product.track_inventory = False
+        self.product.stock_quantity = 0
+        self.product.save(update_fields=["track_inventory", "stock_quantity"])
+
+        response = self.client.post(
+            "/api/orders/create/",
+            {"name": "Test User", "address": "Road 1", "phone": "01700000000"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock_quantity, 0)
+        self.assertEqual(OrderItem.objects.get().stock_deducted, 0)
 
     def test_create_order_bulk_inserts_multiple_items(self):
         second_product = make_product(

@@ -59,13 +59,17 @@ function CompareProducts() {
         };
     }, [BASEURL]);
 
-    const handleAddToCart = (productId) => {
+    const handleAddToCart = async (productId) => {
         if (!localStorage.getItem("access_token")) {
             window.location.href = "/login";
             return;
         }
-        addToCart(productId);
-        showAlert("Added to cart successfully");
+        try {
+            await addToCart(productId);
+            showAlert("Added to cart successfully");
+        } catch (cartError) {
+            showAlert(cartError.message, "error");
+        }
     };
 
     const clearCompare = () => {
@@ -189,15 +193,28 @@ function CompareCard({ product, onAddToCart, prioritizeImage }) {
                                 : `$${product.price}`
                         }
                     />
+                    <CompareRow
+                        label="Availability"
+                        value={
+                            product.is_in_stock !== false
+                                ? product.track_inventory
+                                    ? `${product.stock_quantity} in stock`
+                                    : "In stock"
+                                : "Out of stock"
+                        }
+                    />
                 </div>
 
                 <button
                     onClick={() => onAddToCart(product.id)}
-                    className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-slate-950 px-5 text-sm font-black text-white transition hover:bg-emerald-700"
+                    disabled={product.is_in_stock === false}
+                    className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-slate-950 px-5 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                     type="button"
                 >
                     <FaShoppingCart />
-                    Add to cart
+                    {product.is_in_stock === false
+                        ? "Out of stock"
+                        : "Add to cart"}
                 </button>
             </div>
         </section>

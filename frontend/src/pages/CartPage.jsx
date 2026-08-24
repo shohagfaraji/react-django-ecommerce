@@ -23,6 +23,11 @@ function CartPage() {
         (count, item) => count + item.quantity,
         0,
     );
+    const hasUnavailableItems = cartItems.some(
+        (item) =>
+            item.product_track_inventory &&
+            item.quantity > item.product_stock_quantity,
+    );
 
     return (
         <main className="min-h-screen bg-[#f6f7f9] px-4 pt-36 pb-12 max-[360px]:px-2 md:pt-28">
@@ -58,6 +63,7 @@ function CartPage() {
                         <OrderSummary
                             total={total}
                             itemCount={itemCount}
+                            hasUnavailableItems={hasUnavailableItems}
                         />
                     </div>
                 )}
@@ -148,6 +154,22 @@ function CartItemRow({ item, updateQuantity, removeFromCart, showAlert }) {
                     <p className="mt-2 text-sm font-bold text-slate-500">
                         Line total: ${lineTotal.toFixed(2)}
                     </p>
+                    {item.product_track_inventory &&
+                        item.product_stock_quantity <= item.quantity && (
+                            <p
+                                className={`mt-2 text-xs font-black ${
+                                    item.product_stock_quantity < item.quantity
+                                        ? "text-[#b62324]"
+                                        : "text-amber-700"
+                                }`}
+                            >
+                                {item.product_stock_quantity === 0
+                                    ? "Currently out of stock"
+                                    : item.product_stock_quantity < item.quantity
+                                      ? `Only ${item.product_stock_quantity} available—reduce the quantity`
+                                      : `Maximum available quantity: ${item.product_stock_quantity}`}
+                            </p>
+                        )}
                 </div>
             </div>
 
@@ -189,6 +211,9 @@ function CartItemRow({ item, updateQuantity, removeFromCart, showAlert }) {
 }
 
 function QuantityControl({ item, updateQuantity }) {
+    const reachedStockLimit =
+        item.product_track_inventory &&
+        item.quantity >= item.product_stock_quantity;
     return (
         <div className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 p-1">
             <button
@@ -203,8 +228,9 @@ function QuantityControl({ item, updateQuantity }) {
                 {item.quantity}
             </span>
             <button
-                className="flex h-8 w-8 items-center justify-center rounded text-slate-600 transition hover:bg-white"
+                className="flex h-8 w-8 items-center justify-center rounded text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:text-slate-300"
                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                disabled={reachedStockLimit}
                 type="button"
                 aria-label="Increase quantity"
             >
@@ -214,7 +240,7 @@ function QuantityControl({ item, updateQuantity }) {
     );
 }
 
-function OrderSummary({ total, itemCount }) {
+function OrderSummary({ total, itemCount, hasUnavailableItems }) {
     return (
         <aside className="h-fit rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-xl font-black text-slate-950">Order summary</h2>
@@ -237,12 +263,23 @@ function OrderSummary({ total, itemCount }) {
                 </div>
             </div>
 
-            <Link
-                to="/checkout"
-                className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-md bg-slate-950 text-sm font-black text-white transition hover:bg-emerald-700"
-            >
-                Proceed to checkout
-            </Link>
+            {hasUnavailableItems ? (
+                <div className="mt-6">
+                    <span className="inline-flex h-12 w-full cursor-not-allowed items-center justify-center rounded-md bg-slate-300 text-sm font-black text-white">
+                        Update cart to continue
+                    </span>
+                    <p className="mt-2 text-center text-xs font-bold text-[#b62324]">
+                        One or more quantities exceed available stock.
+                    </p>
+                </div>
+            ) : (
+                <Link
+                    to="/checkout"
+                    className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-md bg-slate-950 text-sm font-black text-white transition hover:bg-emerald-700"
+                >
+                    Proceed to checkout
+                </Link>
+            )}
 
             <div className="mt-5 grid gap-3 rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-600">
                 <span className="flex items-center gap-2">

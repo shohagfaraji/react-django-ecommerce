@@ -208,6 +208,10 @@ button:disabled,
     box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
 }
 
+.form-control.admin-search-input {
+    padding-left: 2.75rem;
+}
+
 textarea.form-control {
     height: auto;
     min-height: 5.5rem;

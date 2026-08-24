@@ -178,13 +178,17 @@ function ProductDetails() {
 
     const isOnSale = product.active_discount > 0 && product.discounted_price;
 
-    const handleAddToCart = () => {
+    const handleAddToCart = async () => {
         if (!localStorage.getItem("access_token")) {
             navigate("/login");
             return;
         }
-        addToCart(product.id);
-        showAlert("Added to cart successfully");
+        try {
+            await addToCart(product.id);
+            showAlert("Added to cart successfully");
+        } catch (cartError) {
+            showAlert(cartError.message, "error");
+        }
     };
 
     const handleCompare = () => {
@@ -278,14 +282,19 @@ function ProductDetails() {
                             </p>
                         )}
 
+                        <InventoryStatus product={product} />
+
                         <div className="mt-7 grid gap-3 sm:grid-cols-2">
                             <button
                                 onClick={handleAddToCart}
-                                className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-slate-950 px-6 text-sm font-black text-white transition hover:bg-emerald-700"
+                                disabled={product.is_in_stock === false}
+                                className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-slate-950 px-6 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                                 type="button"
                             >
                                 <FaShoppingCart />
-                                Add to cart
+                                {product.is_in_stock === false
+                                    ? "Out of stock"
+                                    : "Add to cart"}
                             </button>
 
                             <button
@@ -383,6 +392,34 @@ function ProductDetails() {
                 </section>
             </div>
         </main>
+    );
+}
+
+function InventoryStatus({ product }) {
+    if (!product.track_inventory) {
+        return (
+            <p className="mt-3 text-sm font-black text-emerald-700">
+                In stock
+            </p>
+        );
+    }
+    if (!product.is_in_stock) {
+        return (
+            <p className="mt-3 text-sm font-black text-[#b62324]">
+                Currently out of stock
+            </p>
+        );
+    }
+    return (
+        <p
+            className={`mt-3 text-sm font-black ${
+                product.is_low_stock ? "text-amber-700" : "text-emerald-700"
+            }`}
+        >
+            {product.is_low_stock
+                ? `Only ${product.stock_quantity} left in stock`
+                : `In stock · ${product.stock_quantity} available`}
+        </p>
     );
 }
 

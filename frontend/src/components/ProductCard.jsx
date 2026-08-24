@@ -39,6 +39,12 @@ function ProductCard({ product, prioritizeImage = false }) {
                     </span>
                 )}
 
+                {product.is_in_stock === false && (
+                    <span className="absolute inset-x-3 bottom-3 z-10 rounded-md bg-[#b62324] px-3 py-2 text-center text-xs font-black text-white shadow">
+                        Out of stock
+                    </span>
+                )}
+
                 <div className="flex aspect-square items-center justify-center">
                     {product.image_url && !imageFailed ? (
                         <img
@@ -86,6 +92,22 @@ function ProductCard({ product, prioritizeImage = false }) {
                         ${product.price}
                     </p>
                 )}
+
+                <p
+                    className={`mt-1 text-xs font-black ${
+                        product.is_in_stock === false
+                            ? "text-[#b62324]"
+                            : product.is_low_stock
+                              ? "text-amber-700"
+                              : "text-emerald-700"
+                    }`}
+                >
+                    {product.is_in_stock === false
+                        ? "Out of stock"
+                        : product.track_inventory && product.is_low_stock
+                          ? `Only ${product.stock_quantity} left`
+                          : "In stock"}
+                </p>
 
                 <span className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-md bg-slate-950 text-sm font-black text-white transition group-hover:bg-emerald-700">
                     View product

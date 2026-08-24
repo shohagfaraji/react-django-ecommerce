@@ -8,6 +8,7 @@ import {
 } from "../utils/auth";
 import { useAlert } from "../context/AlertContext";
 import useCart from "../context/useCart";
+import { invalidateStoreProductCaches } from "../utils/apiCache";
 import {
     FaArrowLeft,
     FaCheckCircle,
@@ -38,6 +39,7 @@ function CheckoutPage() {
         total,
         cartItems,
         cartLoading,
+        fetchCart,
     } = useCart();
 
     const [form, setForm] = useState(initialCheckoutForm);
@@ -46,6 +48,11 @@ function CheckoutPage() {
     const [message, setMessage] = useState(null);
     const [confirmedOrder, setConfirmedOrder] = useState(null);
     const [orderSummary, setOrderSummary] = useState(null);
+    const hasUnavailableItems = cartItems.some(
+        (item) =>
+            item.product_track_inventory &&
+            item.quantity > item.product_stock_quantity,
+    );
 
     useEffect(() => {
         const loadSavedDetails = async () => {
@@ -101,6 +108,7 @@ function CheckoutPage() {
                 });
                 showAlert("Order placed successfully");
                 markOrderPlaced();
+                invalidateStoreProductCaches();
                 clearCart();
                 setConfirmedOrder({
                     id: data.order_id,
@@ -111,6 +119,7 @@ function CheckoutPage() {
                 setMessage(
                     data.error || "Failed to place order. Please try again.",
                 );
+                await fetchCart();
             }
         } catch {
             setMessage("An error occurred. Please try again.");
@@ -214,12 +223,20 @@ function CheckoutPage() {
                                     </p>
                                 )}
 
+                                {hasUnavailableItems && !message && (
+                                    <p className="rounded-md bg-[#b62324]/10 px-3 py-2 text-sm font-bold text-[#b62324]">
+                                        Update the unavailable quantities in
+                                        your cart before placing this order.
+                                    </p>
+                                )}
+
                                 <button
                                     type="submit"
                                     disabled={
                                         loading ||
                                         cartLoading ||
-                                        !cartItems.length
+                                        !cartItems.length ||
+                                        hasUnavailableItems
                                     }
                                     className="h-12 w-full rounded-md bg-slate-950 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
                                 >

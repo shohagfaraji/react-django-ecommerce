@@ -3,7 +3,16 @@ from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.db.models import Avg, Count, DecimalField, IntegerField, Q, Sum, Value
+from django.db.models import (
+    Avg,
+    Count,
+    DecimalField,
+    F,
+    IntegerField,
+    Q,
+    Sum,
+    Value,
+)
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework import status
@@ -17,9 +26,11 @@ from .admin_serializers import (
     AdminOrderSerializer,
     AdminProductSerializer,
     AdminReviewSerializer,
+    AdminReviewSummarySerializer,
     delete_dashboard_image,
 )
 from .cache_utils import bump_store_cache_version
+from .inventory import InventoryError, change_order_status
 from .models import Category, HeroBanner, Order, Product, Review
 
 
@@ -47,22 +58,41 @@ def order_queryset():
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def admin_dashboard(request):
-    order_summary = Order.objects.aggregate(
-        total=Count('id'),
-        pending=Count(
-            'id',
-            filter=~Q(status__in=[Order.STATUS_DELIVERED, Order.STATUS_CANCELLED]),
-        ),
-        delivered=Count('id', filter=Q(status=Order.STATUS_DELIVERED)),
+    order_groups = list(Order.objects.values('status').annotate(
+        count=Count('id'),
         revenue=Coalesce(
-            Sum(
-                'total_amount',
-                filter=Q(status=Order.STATUS_DELIVERED),
-            ),
+            Sum('total_amount'),
             Value(Decimal('0.00')),
             output_field=DecimalField(max_digits=12, decimal_places=2),
         ),
+    ))
+    status_counts = {
+        item['status']: item['count']
+        for item in order_groups
+    }
+    terminal_statuses = {Order.STATUS_DELIVERED, Order.STATUS_CANCELLED}
+    delivered_group = next(
+        (
+            item
+            for item in order_groups
+            if item['status'] == Order.STATUS_DELIVERED
+        ),
+        None,
     )
+    order_summary = {
+        'total': sum(item['count'] for item in order_groups),
+        'pending': sum(
+            item['count']
+            for item in order_groups
+            if item['status'] not in terminal_statuses
+        ),
+        'delivered': status_counts.get(Order.STATUS_DELIVERED, 0),
+        'revenue': (
+            delivered_group['revenue']
+            if delivered_group
+            else Decimal('0.00')
+        ),
+    }
     review_summary = Review.objects.aggregate(
         total=Count('id'),
         average=Avg('rating'),
@@ -70,14 +100,31 @@ def admin_dashboard(request):
     recent_orders = order_queryset().order_by('-created_at', '-id')[:6]
     recent_reviews = (
         Review.objects.select_related('user', 'product')
-        .prefetch_related('images')
         .order_by('-created_at', '-id')[:5]
     )
-    status_counts = {
-        item['status']: item['count']
-        for item in Order.objects.values('status').annotate(count=Count('id'))
-    }
     thirty_days_ago = timezone.now() - timedelta(days=30)
+    product_summary = Product.objects.aggregate(
+        total=Count('id'),
+        low_stock=Count(
+            'id',
+            filter=Q(
+                track_inventory=True,
+                stock_quantity__gt=0,
+                stock_quantity__lte=F('low_stock_threshold'),
+            ),
+        ),
+        out_of_stock=Count(
+            'id',
+            filter=Q(track_inventory=True, stock_quantity=0),
+        ),
+    )
+    customer_summary = User.objects.aggregate(
+        total=Count('id', filter=Q(is_staff=False)),
+        new=Count(
+            'id',
+            filter=Q(is_staff=False, date_joined__gte=thirty_days_ago),
+        ),
+    )
 
     return Response({
         'staff': {
@@ -85,19 +132,18 @@ def admin_dashboard(request):
             'email': request.user.email,
         },
         'metrics': {
-            'products': Product.objects.count(),
+            'products': product_summary['total'],
+            'low_stock_products': product_summary['low_stock'],
+            'out_of_stock_products': product_summary['out_of_stock'],
             'categories': Category.objects.count(),
-            'customers': User.objects.filter(is_staff=False).count(),
+            'customers': customer_summary['total'],
             'orders': order_summary['total'],
             'pending_orders': order_summary['pending'],
             'delivered_orders': order_summary['delivered'],
             'delivered_revenue': order_summary['revenue'],
             'reviews': review_summary['total'],
             'average_rating': review_summary['average'] or 0,
-            'new_customers_30_days': User.objects.filter(
-                is_staff=False,
-                date_joined__gte=thirty_days_ago,
-            ).count(),
+            'new_customers_30_days': customer_summary['new'],
         },
         'order_status_counts': status_counts,
         'recent_orders': AdminOrderSerializer(
@@ -105,7 +151,7 @@ def admin_dashboard(request):
             many=True,
             context={'request': request},
         ).data,
-        'recent_reviews': AdminReviewSerializer(
+        'recent_reviews': AdminReviewSummarySerializer(
             recent_reviews,
             many=True,
             context={'request': request},
@@ -182,14 +228,22 @@ def admin_product_detail(request, pk):
                 )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    serializer = AdminProductSerializer(
-        product,
-        data=request.data,
-        partial=True,
-        context={'request': request},
-    )
-    serializer.is_valid(raise_exception=True)
     with transaction.atomic():
+        product = Product.objects.select_for_update().select_related(
+            'category',
+        ).filter(pk=pk).first()
+        if not product:
+            return Response(
+                {'detail': 'Product not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = AdminProductSerializer(
+            product,
+            data=request.data,
+            partial=True,
+            context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
         product = serializer.save()
         schedule_store_cache_refresh()
     return Response(AdminProductSerializer(
@@ -226,12 +280,6 @@ def admin_orders(request):
 @api_view(['PATCH'])
 @permission_classes([IsAdminUser])
 def admin_order_status(request, pk):
-    order = Order.objects.filter(pk=pk).first()
-    if not order:
-        return Response(
-            {'detail': 'Order not found.'},
-            status=status.HTTP_404_NOT_FOUND,
-        )
     next_status = request.data.get('status')
     valid_statuses = {choice[0] for choice in Order.STATUS_CHOICES}
     if next_status not in valid_statuses:
@@ -239,8 +287,20 @@ def admin_order_status(request, pk):
             {'status': ['Choose a valid order status.']},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    order.status = next_status
-    order.save(update_fields=['status', 'updated_at'])
+    try:
+        order, inventory_changed = change_order_status(pk, next_status)
+    except InventoryError as exc:
+        return Response(
+            {'status': [str(exc)]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not order:
+        return Response(
+            {'detail': 'Order not found.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    if inventory_changed:
+        schedule_store_cache_refresh()
     return Response({
         'id': order.id,
         'status': order.status,
