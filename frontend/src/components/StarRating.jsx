@@ -4,8 +4,11 @@ function StarRating({ value = 0, count, size = "text-sm", interactive = false, o
     const rounded = Math.round(Number(value) * 2) / 2;
 
     return (
-        <div className={`inline-flex items-center gap-1 ${size}`} aria-label={`${value} out of 5 stars`}>
-            <span className="inline-flex gap-0.5 text-amber-400">
+        <div
+            className={`inline-flex max-w-full items-center gap-1 whitespace-nowrap ${size}`}
+            aria-label={`${value} out of 5 stars`}
+        >
+            <span className="inline-flex shrink-0 gap-0.5 text-amber-400">
                 {[1, 2, 3, 4, 5].map((star) => {
                     const Icon =
                         rounded >= star
@@ -29,7 +32,7 @@ function StarRating({ value = 0, count, size = "text-sm", interactive = false, o
                 })}
             </span>
             {!interactive && (
-                <span className="font-bold text-slate-500">
+                <span className="shrink-0 font-bold text-slate-500">
                     {Number(value) > 0 ? Number(value).toFixed(1) : "No ratings"}
                     {count !== undefined && Number(count) > 0 ? ` (${count})` : ""}
                 </span>
