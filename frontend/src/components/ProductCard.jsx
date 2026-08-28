@@ -23,7 +23,7 @@ function ProductCard({ product, prioritizeImage = false }) {
             onMouseEnter={preloadDetails}
             onFocus={preloadDetails}
             onTouchStart={preloadDetails}
-            className="group block overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            className="group block h-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
         >
             <div className="relative overflow-hidden rounded-md bg-slate-50">
                 {isOnSale && (
@@ -68,13 +68,14 @@ function ProductCard({ product, prioritizeImage = false }) {
                 <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-400">
                     {product.category?.name || "Product"}
                 </p>
-                <h2 className="line-clamp-2 text-base font-black leading-snug text-slate-900">
+                <h2 className="min-h-[2.75rem] line-clamp-2 text-base font-black leading-snug text-slate-900">
                     {product.name}
                 </h2>
                 <div className="mt-1.5">
                     <StarRating
                         value={product.average_rating}
                         count={product.review_count}
+                        size="text-xs sm:text-sm"
                     />
                 </div>
 
