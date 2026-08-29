@@ -22,8 +22,51 @@ The backend may take a short time to respond after being inactive because the li
 - Review comments and image attachments
 - Review editing and deletion
 - Reviews limited to customers with delivered products
-- Django admin for products, categories, banners, orders, and reviews
+- Staff-only admin dashboard for products, categories, banners, orders, inventory, and reviews
 - Cloudinary image storage
+
+## Admin dashboard
+
+Winkelo includes a custom React administration dashboard at `/admin`. Access is restricted to authenticated Django staff users, and every admin API endpoint is protected on the server with Django REST Framework's `IsAdminUser` permission.
+
+### Admin interface
+
+![Admin dashboard overview with store metrics, recent orders, and customer reviews](docs/images/admin-overview.png)
+
+| Product and inventory management | Order management |
+| --- | --- |
+| ![Admin product management with inventory, pricing, ratings, and storefront placement](docs/images/admin-products.png) | ![Admin order management with customer, delivery, payment, and status details](docs/images/admin-orders.png) |
+
+### Dashboard overview
+
+- Product, category, customer, order, and review totals
+- Pending and delivered order summaries
+- Revenue calculated from delivered orders
+- Low-stock and out-of-stock product counts
+- New-customer count for the previous 30 days
+- Recent orders, recent reviews, and order-status breakdowns
+
+### Catalog management
+
+- Create, search, edit, and delete products
+- Manage product images, prices, discounts, category assignments, and storefront flags
+- Enable inventory tracking and maintain stock quantities and low-stock thresholds
+- Create and organize parent and child categories
+- Control category visibility, featured placement, images, descriptions, and display order
+
+### Order and review management
+
+- Filter orders by status and search by customer or order details
+- Update order progress from placement through delivery or cancellation
+- Restore reserved stock when an eligible order is cancelled
+- Search and inspect customer reviews, ratings, comments, and attachments
+- Remove inappropriate reviews and their associated images
+
+### Storefront content
+
+- Create, edit, order, activate, and remove homepage hero banners
+- Configure banner text, images, linked categories, visibility, and scheduling dates
+- Automatically invalidate relevant storefront caches after catalog or banner changes
 
 ## Screenshots
 
@@ -186,6 +229,24 @@ Open http://localhost:5173.
 | DELETE | `/api/reviews/<id>/` | Required |
 | GET | `/api/profile/` | Required |
 | PATCH | `/api/profile/` | Required |
+
+### Admin API routes
+
+All routes below require an authenticated staff account.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/admin/dashboard/` | Dashboard metrics and recent activity |
+| GET, POST | `/api/admin/products/` | List, search, or create products |
+| PATCH, DELETE | `/api/admin/products/<id>/` | Update or delete a product |
+| GET | `/api/admin/orders/` | List, search, or filter orders |
+| PATCH | `/api/admin/orders/<id>/status/` | Update an order's delivery status |
+| GET, POST | `/api/admin/categories/` | List or create categories |
+| PATCH, DELETE | `/api/admin/categories/<id>/` | Update or delete a category |
+| GET | `/api/admin/reviews/` | List, search, or filter reviews |
+| DELETE | `/api/admin/reviews/<id>/` | Delete a review |
+| GET, POST | `/api/admin/banners/` | List or create hero banners |
+| PATCH, DELETE | `/api/admin/banners/<id>/` | Update or delete a hero banner |
 
 ## Tests
 
